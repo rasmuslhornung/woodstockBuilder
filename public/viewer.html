@@ -1,0 +1,2769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3DM Viewer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0d0f14;
+      --surface:  #161820;
+      --surface2: #1e2029;
+      --border:   #2a2d3a;
+      --accent:   #4f9eff;
+      --text:     #e4e4e7;
+      --muted:    #71717a;
+    }
+
+    html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; }
+
+    #canvas { position: fixed; inset: 0; display: block; width: 100%; height: 100%; }
+
+    /* ── Landing ── */
+    #landing {
+      position: fixed; inset: 0; z-index: 50;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--bg);
+      background-image: radial-gradient(ellipse at 50% 38%, rgba(79,158,255,.06) 0%, transparent 68%);
+    }
+    .lc {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 2.5rem 2rem;
+      width: 100%; max-width: 420px;
+      display: flex; flex-direction: column; align-items: center; gap: 1.5rem;
+      text-align: center;
+    }
+    .lc-heading h1 { font-size: 1.45rem; font-weight: 700; letter-spacing: -.02em; }
+    .lc-heading p  { color: var(--muted); font-size: .88rem; margin-top: .4rem; line-height: 1.5; }
+    .lc-input { width: 100%; display: flex; flex-direction: column; gap: .75rem; }
+    #code-input {
+      width: 100%; background: var(--surface2); border: 1.5px solid var(--border);
+      border-radius: 8px; padding: .85rem 1rem;
+      font-size: 1.6rem; font-weight: 700; font-family: 'Courier New', monospace;
+      letter-spacing: .22em; text-align: center; text-transform: uppercase;
+      color: var(--text); outline: none; transition: border-color .15s, box-shadow .15s;
+    }
+    #code-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,158,255,.15); }
+    #code-input::placeholder { color: var(--muted); letter-spacing: .08em; font-size: 1rem; font-weight: 400; }
+    #code-error { font-size: .82rem; color: #f87171; min-height: 1.1rem; width: 100%; text-align: center; }
+    .lc-divider {
+      width: 100%; display: flex; align-items: center; gap: .75rem;
+      color: var(--muted); font-size: .75rem;
+    }
+    .lc-divider::before, .lc-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    .btn { padding: 0.6rem 1.75rem; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-size: 0.9rem; font-weight: 500; cursor: pointer; transition: opacity .15s; width: 100%; }
+    .btn:hover { opacity: .8; }
+    .btn-ghost { background: none; border: 1px solid var(--border); color: var(--muted); padding: 0.3rem 0.9rem; font-size: 0.75rem; border-radius: 5px; cursor: pointer; }
+    .btn-ghost:hover { color: var(--text); border-color: var(--accent); }
+
+    /* ── Drop / Loading ── */
+    #drop-overlay { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: var(--accent); background: rgba(79,158,255,.06); border: 2px dashed var(--accent); opacity: 0; pointer-events: none; transition: opacity .2s; }
+    #drop-overlay.show { opacity: 1; }
+    #loading { position: fixed; inset: 0; z-index: 100; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; background: rgba(13,15,20,.88); backdrop-filter: blur(4px); }
+    #loading.show { display: flex; }
+    .spinner { width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--accent); animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading-text { font-size: .85rem; color: var(--muted); }
+
+    /* ── Shared panel chrome ── */
+    .ph { padding: .85rem 1.1rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .ph-title { font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); }
+    .ph-close { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1rem; padding: .2rem .3rem; border-radius: 3px; }
+    .ph-close:hover { color: var(--text); background: var(--surface2); }
+    .ph-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: .72rem; padding: .2rem .5rem; border-radius: 3px; }
+    .ph-btn:hover { color: var(--accent); background: var(--surface2); }
+
+    .ps { margin-bottom: 1.25rem; }
+    .ps-title { font-size: .63rem; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: .35rem; }
+    .pr { display: flex; flex-direction: column; gap: .1rem; padding: .4rem 0; border-bottom: 1px solid var(--border); }
+    .pr:last-child { border-bottom: none; }
+    .pr-key { font-size: .67rem; color: var(--muted); }
+    .pr-val { font-size: .84rem; color: var(--text); word-break: break-all; }
+    .swatch { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: middle; flex-shrink: 0; }
+
+    /* ── Top bar ── */
+    #topbar { position: fixed; top: 0; left: 0; right: 0; height: 42px; z-index: 20; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 1rem; gap: 1rem; font-size: .78rem; color: var(--muted); opacity: 0; pointer-events: none; transition: opacity .2s; }
+    #topbar.show { opacity: 1; pointer-events: all; }
+    #topbar .filename { color: var(--text); font-weight: 500; }
+    #topbar .sep { color: var(--border); }
+    #topbar .spacer { flex: 1; }
+
+    /* ── Module panel (left) ── */
+    #module-panel { position: fixed; top: 42px; left: 0; bottom: 0; width: 210px; z-index: 15; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; opacity: 0; pointer-events: none; transition: opacity .2s; }
+    #module-panel.show { opacity: 1; pointer-events: all; }
+    #module-list { flex: 1; overflow-y: auto; }
+    .mod-item { display: flex; align-items: center; gap: .55rem; padding: .5rem .9rem; cursor: pointer; border-bottom: 1px solid var(--border); transition: background .1s; user-select: none; }
+    .mod-item:hover { background: var(--surface2); }
+    .mod-item.active { background: rgba(79,158,255,.12); outline: 1px solid rgba(79,158,255,.3); }
+    .mod-item.dimmed { opacity: .3; }
+    .mod-name { font-size: .82rem; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mod-count { font-size: .66rem; color: var(--muted); flex-shrink: 0; }
+
+    /* ── Info panel (right) ── */
+    #info-panel { position: fixed; top: 42px; right: 0; bottom: 0; width: 290px; z-index: 20; background: var(--surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; transform: translateX(100%); transition: transform .25s cubic-bezier(.4,0,.2,1); }
+    #info-panel.open { transform: translateX(0); }
+    #panel-body { flex: 1; overflow-y: auto; padding: .85rem 1.1rem; }
+    #panel-footer { flex-shrink: 0; padding: .6rem 1.1rem; border-top: 1px solid var(--border); display: none; }
+    #panel-footer.active { display: block; }
+
+    /* ── Assembly bar ── */
+    /* ── Assembly element-list panel (left sidebar during build) ── */
+    #asm-list-panel {
+      position: fixed; top: 42px; left: 0; width: 240px; bottom: 76px; z-index: 25;
+      background: var(--surface); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      transform: translateX(-100%); transition: transform .3s cubic-bezier(.4,0,.2,1);
+      overflow: hidden;
+    }
+    #asm-list-panel.show { transform: translateX(0); }
+    .alp-header {
+      padding: .65rem 1rem; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: .5rem; flex-shrink: 0;
+    }
+    .alp-swatch { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+    .alp-title { font-size: .7rem; font-weight: 700; color: var(--text); letter-spacing: .06em; text-transform: uppercase; }
+    .alp-count { margin-left: auto; font-size: .62rem; color: var(--muted); }
+    .alp-scroll { flex: 1; overflow-y: auto; padding: .35rem 0; }
+    .alp-scroll::-webkit-scrollbar { width: 3px; }
+    .alp-scroll::-webkit-scrollbar-track { background: transparent; }
+    .alp-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .ali {
+      display: flex; align-items: center; gap: .5rem;
+      padding: .35rem 1rem; cursor: pointer; transition: background .1s; min-width: 0;
+    }
+    .ali:hover { background: var(--surface2); }
+    .ali.active { background: rgba(79,158,255,.1); border-left: 2px solid var(--accent); padding-left: calc(1rem - 2px); }
+    .ali.done { opacity: .38; }
+    .ali-status { font-size: .6rem; width: 12px; text-align: center; flex-shrink: 0; color: var(--muted); }
+    .ali.active .ali-status { color: var(--accent); font-weight: 900; font-size: .7rem; }
+    .ali-num { font-size: .6rem; color: var(--muted); font-family: 'Courier New', monospace; flex-shrink: 0; width: 18px; }
+    .ali-name { font-size: .7rem; font-family: 'Courier New', monospace; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    .ali.done .ali-name { text-decoration: line-through; }
+
+    /* ── Assembly bar (bottom) ── */
+    #assembly-bar {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 30;
+      background: var(--surface); border-top: 1px solid var(--border);
+      transform: translateY(100%); transition: transform .3s cubic-bezier(.4,0,.2,1);
+    }
+    #assembly-bar.show { transform: translateY(0); }
+
+    .asm-progress-strip { height: 3px; background: var(--border); }
+    .asm-progress-fill  { height: 100%; background: var(--accent); transition: width .35s ease; width: 0%; }
+
+    .asm-body {
+      display: flex; align-items: center;
+      padding: .85rem 1.25rem; gap: 1.25rem; min-height: 72px;
+    }
+
+    /* Colored left accent bar */
+    .asm-accent { width: 4px; height: 44px; border-radius: 4px; flex-shrink: 0; background: var(--accent); transition: background .2s; }
+
+    /* Element info */
+    .asm-element { display: flex; flex-direction: column; gap: .1rem; min-width: 0; flex: 1; }
+    .asm-now-placing { font-size: .56rem; font-weight: 700; text-transform: uppercase; letter-spacing: .18em; color: var(--muted); }
+    .asm-fullname { font-family: 'Courier New', monospace; font-size: 1.3rem; font-weight: 700; color: var(--text); letter-spacing: .06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.15; }
+    .asm-meta { display: flex; align-items: center; gap: .6rem; margin-top: .05rem; }
+    .asm-step-label { font-size: .62rem; color: var(--muted); white-space: nowrap; }
+    .swatch.asm-sw { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+
+    /* Nav */
+    .asm-nav { display: flex; gap: .55rem; flex-shrink: 0; }
+    .asm-btn {
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); padding: .5rem 1.2rem; font-size: .82rem; font-weight: 600;
+      border-radius: 6px; cursor: pointer; transition: all .15s; white-space: nowrap;
+    }
+    .asm-btn:hover:not(:disabled) { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .asm-btn:disabled { opacity: .2; cursor: default; }
+    .asm-btn--primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .asm-btn--primary:hover:not(:disabled) { filter: brightness(1.12); }
+
+    /* Exit */
+    .asm-exit {
+      background: none; border: 1px solid var(--border); color: var(--muted);
+      padding: .4rem .85rem; font-size: .72rem; border-radius: 5px; cursor: pointer; white-space: nowrap;
+    }
+    .asm-exit:hover { color: var(--text); border-color: var(--text); }
+
+    /* ── Toolbar ── */
+    #toolbar { position: fixed; bottom: 1.1rem; left: 50%; transform: translateX(-50%); background: var(--surface); border: 1px solid var(--border); border-radius: 7px; padding: .45rem 1rem; display: flex; align-items: center; gap: 1.2rem; font-size: .7rem; color: var(--muted); z-index: 10; white-space: nowrap; transition: opacity .2s; }
+    #toolbar.hidden { opacity: 0; pointer-events: none; }
+    kbd { background: var(--surface2); border: 1px solid var(--border); border-radius: 3px; padding: 0 4px; font-size: .62rem; color: var(--text); font-family: inherit; }
+
+    /* ── Per-element name labels (shown during assembly overview) ── */
+    .elem-label {
+      font-size: 9px;
+      font-weight: 700;
+      color: #fff;
+      background: rgba(8,10,18,0.78);
+      padding: 2px 7px;
+      border-radius: 4px;
+      white-space: nowrap;
+      pointer-events: none;
+      letter-spacing: .04em;
+      border: 1px solid rgba(255,255,255,0.13);
+      box-shadow: 0 1px 6px rgba(0,0,0,0.6);
+    }
+
+    /* ── Print modal ── */
+    #print-modal {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,.65); backdrop-filter: blur(4px);
+      display: none; align-items: center; justify-content: center;
+    }
+    #print-modal.show { display: flex; }
+    #print-panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; width: 440px; max-height: 82vh;
+      display: flex; flex-direction: column; overflow: hidden;
+      box-shadow: 0 24px 60px rgba(0,0,0,.5);
+    }
+    .pm-header {
+      padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+    }
+    .pm-header h2 { font-size: .95rem; font-weight: 700; }
+    .pm-header p  { font-size: .75rem; color: var(--muted); margin-top: .15rem; }
+    .pm-hclose { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1rem; padding: .2rem .3rem; border-radius: 3px; }
+    .pm-hclose:hover { color: var(--text); background: var(--surface2); }
+    .pm-body { flex: 1; overflow-y: auto; padding: 1rem 1.25rem; display: flex; flex-direction: column; gap: .75rem; }
+    .pm-section-title { font-size: .63rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: .45rem; }
+    .pm-all-row {
+      display: flex; align-items: center; gap: .55rem;
+      font-size: .82rem; color: var(--text); cursor: pointer;
+      padding: .42rem .65rem; border-radius: 6px;
+      border-bottom: 1px solid var(--border); margin-bottom: .3rem;
+    }
+    .pm-all-row:hover { background: var(--surface2); }
+    #pm-module-list { display: flex; flex-direction: column; gap: .1rem; }
+    .pm-mod-row {
+      display: flex; align-items: center; gap: .55rem;
+      padding: .38rem .65rem; cursor: pointer; border-radius: 6px;
+      user-select: none;
+    }
+    .pm-mod-row:hover { background: var(--surface2); }
+    .pm-mod-row input { cursor: pointer; accent-color: var(--accent); }
+    .pm-swatch { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+    .pm-mod-name { flex: 1; font-family: 'Courier New', monospace; font-size: .78rem; color: var(--text); }
+    .pm-mod-count { font-size: .65rem; color: var(--muted); }
+    .pm-footer {
+      padding: .85rem 1.25rem; border-top: 1px solid var(--border);
+      display: flex; flex-direction: column; gap: .45rem; flex-shrink: 0;
+    }
+    .pm-note { font-size: .68rem; color: var(--muted); text-align: center; }
+    #pm-progress { font-size: .75rem; color: var(--accent); text-align: center; min-height: 1rem; }
+
+    /* ── Guide modal ── */
+    #guide-modal {
+      position: fixed; inset: 0; z-index: 210;
+      background: rgba(0,0,0,.72); backdrop-filter: blur(6px);
+      display: none; align-items: center; justify-content: center;
+    }
+    #guide-modal.show { display: flex; }
+    #guide-panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; width: 480px; max-width: calc(100vw - 2rem);
+      max-height: 88vh; display: flex; flex-direction: column; overflow: hidden;
+      box-shadow: 0 32px 80px rgba(0,0,0,.6);
+    }
+    .gd-slide { display: none; flex-direction: column; align-items: center; text-align: center; padding: 2.5rem 2rem 1.5rem; gap: 1rem; flex: 1; overflow-y: auto; }
+    .gd-slide.active { display: flex; animation: gd-in .25s ease; }
+    @keyframes gd-in { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
+    .gd-icon { font-size: 2.8rem; line-height: 1; }
+    .gd-title { font-size: 1.15rem; font-weight: 700; letter-spacing: -.02em; }
+    .gd-body { font-size: .85rem; color: var(--muted); line-height: 1.65; white-space: pre-line; max-width: 360px; }
+    .gd-glossary { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; width: 100%; margin-top: .5rem; }
+    .gd-cat { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: .55rem .75rem; text-align: left; }
+    .gd-cat-code { font-size: .65rem; font-weight: 700; letter-spacing: .12em; color: var(--accent); text-transform: uppercase; }
+    .gd-cat-name { font-size: .82rem; color: var(--text); margin-top: .1rem; }
+    .gd-footer { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.5rem; border-top: 1px solid var(--border); flex-shrink: 0; }
+    .gd-dots { display: flex; gap: .45rem; }
+    .gd-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); transition: background .2s; }
+    .gd-dot.active { background: var(--accent); }
+    .gd-nav { display: flex; gap: .5rem; }
+    .gd-nav button { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: .45rem 1.1rem; font-size: .8rem; border-radius: 6px; cursor: pointer; }
+    .gd-nav button:hover { border-color: var(--accent); color: var(--accent); }
+    .gd-nav .gd-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .gd-nav .gd-primary:hover { filter: brightness(1.1); color: #fff; }
+
+    /* ── Find element modal ── */
+    #find-modal {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,.6); backdrop-filter: blur(4px);
+      display: none; align-items: flex-end; justify-content: center;
+    }
+    #find-modal.show { display: flex; }
+    #find-panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px 16px 0 0; width: 100%; max-width: 560px;
+      max-height: 88vh; display: flex; flex-direction: column; overflow: hidden;
+      box-shadow: 0 -12px 40px rgba(0,0,0,.5);
+      animation: slide-up .25s cubic-bezier(.4,0,.2,1);
+    }
+    @keyframes slide-up { from { transform: translateY(100%); } to { transform: none; } }
+    .fp-header { padding: .9rem 1.25rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .fp-header h2 { font-size: .95rem; font-weight: 700; }
+    .fp-close { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1rem; }
+    .fp-close:hover { color: var(--text); }
+    .fp-body { flex: 1; overflow-y: auto; padding: 1rem 1.25rem; display: flex; flex-direction: column; gap: 1rem; }
+    .fp-label { font-size: .63rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: .35rem; }
+    .fp-kit-grid { display: flex; flex-wrap: wrap; gap: .4rem; }
+    .fp-kit-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: .38rem .8rem; border-radius: 6px; font-size: .78rem; font-family: 'Courier New', monospace; cursor: pointer; transition: all .15s; }
+    .fp-kit-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .fp-kit-btn.sel { background: rgba(79,158,255,.15); border-color: var(--accent); color: var(--accent); font-weight: 700; }
+    .fp-cat-grid { display: flex; flex-wrap: wrap; gap: .4rem; }
+    .fp-cat-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: .38rem .9rem; border-radius: 6px; font-size: .78rem; cursor: pointer; transition: all .15s; display: flex; flex-direction: column; align-items: flex-start; gap: .05rem; }
+    .fp-cat-btn:hover { border-color: var(--accent); }
+    .fp-cat-btn.sel { background: rgba(79,158,255,.15); border-color: var(--accent); }
+    .fp-cat-code { font-size: .62rem; font-weight: 700; letter-spacing: .1em; color: var(--accent); }
+    .fp-cat-name { font-size: .75rem; }
+    .fp-el-list { display: flex; flex-direction: column; gap: .15rem; }
+    .fp-el-row { display: flex; align-items: center; gap: .7rem; padding: .45rem .7rem; border-radius: 7px; cursor: pointer; border: 1px solid transparent; transition: all .12s; }
+    .fp-el-row:hover { background: var(--surface2); border-color: var(--border); }
+    .fp-el-num { font-size: .62rem; color: var(--muted); width: 22px; flex-shrink: 0; font-family: 'Courier New', monospace; }
+    .fp-el-name { font-size: .8rem; font-family: 'Courier New', monospace; flex: 1; }
+    .fp-el-step { font-size: .62rem; color: var(--muted); flex-shrink: 0; }
+    .fp-el-go { font-size: .7rem; color: var(--accent); flex-shrink: 0; padding: .2rem .5rem; border-radius: 4px; background: rgba(79,158,255,.1); }
+
+    /* ── Report / flag modal ── */
+    #report-modal {
+      position: fixed; inset: 0; z-index: 220;
+      background: rgba(0,0,0,.7); backdrop-filter: blur(4px);
+      display: none; align-items: flex-end; justify-content: center;
+    }
+    #report-modal.show { display: flex; }
+    #report-panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px 16px 0 0; width: 100%; max-width: 520px;
+      display: flex; flex-direction: column; overflow: hidden;
+      box-shadow: 0 -12px 40px rgba(0,0,0,.5);
+      animation: slide-up .25s cubic-bezier(.4,0,.2,1);
+    }
+    .rp-header { padding: .9rem 1.25rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .rp-header h2 { font-size: .92rem; font-weight: 700; }
+    .rp-elem { font-size: .72rem; color: var(--muted); font-family: 'Courier New', monospace; margin-top: .1rem; }
+    .rp-body { padding: 1rem 1.25rem; display: flex; flex-direction: column; gap: .85rem; }
+    .rp-label { font-size: .63rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: .3rem; }
+    #rp-note { width: 100%; background: var(--surface2); border: 1.5px solid var(--border); border-radius: 8px; padding: .7rem .9rem; color: var(--text); font-size: .85rem; font-family: inherit; resize: none; outline: none; min-height: 80px; }
+    #rp-note:focus { border-color: var(--accent); }
+    .rp-photo-row { display: flex; align-items: center; gap: .75rem; }
+    #rp-photo-preview { width: 64px; height: 64px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border); display: none; }
+    .rp-photo-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: .5rem 1rem; border-radius: 7px; font-size: .8rem; cursor: pointer; }
+    .rp-photo-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .rp-footer { padding: .85rem 1.25rem; border-top: 1px solid var(--border); display: flex; gap: .6rem; }
+    #rp-status { font-size: .75rem; color: var(--muted); margin-top: .25rem; min-height: 1rem; text-align: center; }
+
+    /* ── Assembly bar extras ── */
+    .asm-dims { font-size: .58rem; color: var(--muted); letter-spacing: .04em; margin-top: .1rem; font-family: 'Courier New', monospace; }
+    .asm-flag {
+      background: none; border: 1px solid var(--border); color: var(--muted);
+      padding: .4rem .7rem; font-size: .9rem; border-radius: 5px; cursor: pointer; flex-shrink: 0;
+    }
+    .asm-flag:hover { color: #f87171; border-color: #f87171; }
+
+    /* ── Guide + Find topbar buttons ── */
+    .tb-icon-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: .28rem .6rem; border-radius: 5px; cursor: pointer; font-size: .8rem; display: none; }
+    .tb-icon-btn:hover { color: var(--text); border-color: var(--accent); }
+    .tb-icon-btn.always { display: inline-flex; }
+
+    /* ══════════════════════════════════════════════════════════════
+       RESPONSIVE — set by JS via html.dev-phone / html.dev-tablet
+       ══════════════════════════════════════════════════════════════ */
+
+    /* ── Shared touch: hide keyboard-shortcut toolbar ── */
+    html.dev-phone  #toolbar,
+    html.dev-tablet #toolbar { display: none !important; }
+
+    /* ── Shared touch: smooth momentum scroll on iOS ── */
+    html.dev-phone  #module-list,
+    html.dev-tablet #module-list,
+    html.dev-phone  #alp-scroll,
+    html.dev-tablet #alp-scroll,
+    html.dev-phone  .fp-body,
+    html.dev-phone  #panel-body { -webkit-overflow-scrolling: touch; }
+
+    /* ══ TABLET (iPad) ════════════════════════════════════════════ */
+
+    html.dev-tablet #module-panel { width: 185px; }
+    html.dev-tablet #info-panel   { width: 265px; }
+
+    /* Larger tap targets */
+    html.dev-tablet .mod-item  { padding: .65rem .9rem; min-height: 48px; }
+    html.dev-tablet .asm-btn   { padding: .65rem 1.2rem; min-height: 44px; }
+    html.dev-tablet .asm-exit,
+    html.dev-tablet .asm-flag  { min-height: 44px; display: flex; align-items: center; justify-content: center; }
+
+    /* Hide steps list btn on tablet (sidebar still shows) */
+    html.dev-tablet #asm-list-btn { display: none !important; }
+    html.dev-tablet #kits-toggle-btn { display: none !important; }
+
+    /* ══ PHONE (iPhone) ══════════════════════════════════════════ */
+
+    /* Top bar — compact */
+    html.dev-phone #topbar { height: 48px; padding: 0 .7rem; gap: .35rem; }
+    html.dev-phone #topbar .filename {
+      font-size: .72rem; max-width: 110px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    html.dev-phone #topbar .sep,
+    html.dev-phone #tb-client,
+    html.dev-phone #tb-client-sep,
+    html.dev-phone #tb-count { display: none !important; }
+    html.dev-phone .btn-ghost { padding: .28rem .55rem; font-size: .7rem; }
+
+    /* Kits toggle button — visible on phone only when model loaded */
+    #kits-toggle-btn { display: none; }
+
+    /* Landing card — full-bleed on phone */
+    html.dev-phone .lc {
+      max-width: 100%;
+      border-radius: 0;
+      border-left: none; border-right: none;
+      min-height: 100dvh;
+      justify-content: center;
+      padding: 2rem 1.5rem;
+      padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+    }
+    html.dev-phone #code-input { font-size: 1.25rem; }
+
+    /* Module panel — bottom sheet */
+    html.dev-phone #module-panel {
+      top: auto !important;
+      left: 0 !important; right: 0 !important;
+      bottom: 0;
+      width: 100% !important;
+      height: 60vh;
+      border-right: none;
+      border-top: 1px solid var(--border);
+      border-radius: 16px 16px 0 0;
+      /* Switch from opacity to transform for show/hide */
+      opacity: 1 !important;
+      pointer-events: none;
+      transform: translateY(100%);
+      transition: transform .32s cubic-bezier(.4,0,.2,1) !important;
+      z-index: 40;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    html.dev-phone #module-panel.show {
+      transform: translateY(0);
+      pointer-events: all;
+    }
+    /* Drag handle pill */
+    html.dev-phone #module-panel .ph::before {
+      content: '';
+      position: absolute;
+      top: .45rem; left: 50%; transform: translateX(-50%);
+      width: 38px; height: 4px;
+      background: var(--border); border-radius: 2px;
+    }
+    html.dev-phone #module-panel .ph { position: relative; padding-top: 1.1rem; }
+
+    /* Info panel — full-width bottom sheet */
+    html.dev-phone #info-panel {
+      top: auto !important;
+      left: 0 !important; right: 0 !important;
+      bottom: 0;
+      width: 100% !important;
+      border-left: none;
+      border-top: 1px solid var(--border);
+      border-radius: 16px 16px 0 0;
+      max-height: 68vh;
+      transform: translateY(100%) !important;
+      transition: transform .32s cubic-bezier(.4,0,.2,1) !important;
+      z-index: 35;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    html.dev-phone #info-panel.open { transform: translateY(0) !important; }
+
+    /* Assembly element list — bottom-sheet overlay above assembly bar */
+    html.dev-phone #asm-list-panel {
+      top: auto !important;
+      left: 0; right: 0;
+      width: 100%;
+      bottom: 0;
+      max-height: 60vh;
+      border-right: none;
+      border-top: 1px solid var(--border);
+      border-radius: 16px 16px 0 0;
+      z-index: 45;
+      transform: translateY(110%) !important;
+      transition: transform .32s cubic-bezier(.4,0,.2,1) !important;
+      opacity: 1;
+    }
+    /* 'show' is set by desktop logic — ignore it on phone.
+       Only the ☰ toggle button adds 'phone-open' to reveal the sheet. */
+    html.dev-phone #asm-list-panel.phone-open {
+      transform: translateY(0) !important;
+    }
+    /* Extra bottom padding so last list item clears the assembly bar */
+    html.dev-phone #alp-scroll { padding-bottom: 120px; }
+    /* Drag handle */
+    html.dev-phone #asm-list-panel .alp-header::before {
+      content: '';
+      position: absolute;
+      top: .45rem; left: 50%; transform: translateX(-50%);
+      width: 38px; height: 4px;
+      background: var(--border); border-radius: 2px;
+    }
+    html.dev-phone .alp-header { position: relative; padding-top: 1.1rem; }
+
+    /* asm-list-btn — phone only */
+    #asm-list-btn { display: none; }
+    html.dev-phone #asm-list-btn { display: inline-flex; }
+
+    /* Assembly bar — 2-row layout for phone */
+    html.dev-phone #assembly-bar {
+      z-index: 50;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    html.dev-phone .asm-body {
+      flex-wrap: wrap;
+      padding: .5rem .75rem;
+      gap: .38rem;
+      min-height: auto;
+    }
+    html.dev-phone .asm-accent { display: none; }
+
+    /* ── Row 1: element info full width ── */
+    html.dev-phone .asm-element { flex: 1 1 100%; order: 1; }
+    html.dev-phone .asm-fullname { font-size: .92rem; }
+    html.dev-phone .asm-now-placing { font-size: .5rem; }
+
+    /* ── Row 2: [nav flex:1] [☰ 44px] [🚩 44px] [✕ 44px] ── */
+    /* nav takes all remaining space; the three icons are fixed-width */
+    html.dev-phone .asm-nav {
+      order: 2;
+      flex: 1;          /* fills the row */
+      display: flex;
+      gap: .35rem;
+    }
+    html.dev-phone .asm-nav .asm-btn {
+      flex: 1;           /* prev and next share nav evenly */
+      padding: .55rem .3rem;
+      font-size: .74rem;
+      justify-content: center;
+      min-height: 44px;
+    }
+    /* Icon-only fixed buttons */
+    html.dev-phone #asm-list-btn {
+      order: 3;
+      flex: 0 0 44px;
+      padding: 0;
+      font-size: 1rem;
+      min-height: 44px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    html.dev-phone .asm-flag {
+      order: 4;
+      flex: 0 0 44px;
+      padding: 0;
+      min-height: 44px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    /* Exit: icon-only on phone */
+    html.dev-phone .asm-exit {
+      order: 5;
+      flex: 0 0 44px;
+      padding: 0;
+      font-size: 0;     /* hide "Exit Build" text */
+      min-height: 44px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 5px;
+    }
+    html.dev-phone .asm-exit::before {
+      content: '✕';
+      font-size: .95rem;
+      color: var(--muted);
+    }
+
+    html.dev-phone .ali { min-height: 44px; padding: .45rem 1rem; }
+    html.dev-phone .mod-item { min-height: 48px; }
+
+    /* Guide modal — bottom-aligned on phone */
+    html.dev-phone #guide-modal { align-items: flex-end; }
+    html.dev-phone #guide-panel {
+      width: 100%; max-width: 100%;
+      border-radius: 16px 16px 0 0;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    /* ── Module labels (CSS2D) ── */
+    .mod-label {
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .05em;
+      color: #fff;
+      mix-blend-mode: normal;
+      border: 2px solid rgba(255,255,255,0.25);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,0,0,0.3);
+      pointer-events: none;
+      user-select: none;
+      white-space: nowrap;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+      transition: opacity .2s;
+    }
+    html.dev-phone .mod-label {
+      font-size: 9px;
+      padding: 2px 7px;
+    }
+
+  </style>
+</head>
+<body>
+
+<div id="landing">
+  <div class="lc">
+    <svg width="44" height="44" viewBox="0 0 52 52" fill="none" style="opacity:.3">
+      <path d="M4 44L16 12L32 32L40 20L48 44H4Z" stroke="#4f9eff" stroke-width="2"/>
+      <circle cx="40" cy="16" r="4" stroke="#4f9eff" stroke-width="2"/>
+    </svg>
+    <div class="lc-heading">
+      <h1>Assembly Viewer</h1>
+      <p>Enter the project code you received<br>to open your model.</p>
+    </div>
+    <div class="lc-input">
+      <input type="text" id="code-input" placeholder="Enter code…" maxlength="8"
+             autocomplete="off" spellcheck="false">
+      <div id="code-error"></div>
+      <button class="btn" id="code-submit">Open Project →</button>
+    </div>
+    <div class="lc-divider"><span>or</span></div>
+    <label class="btn-ghost" for="file-input" style="cursor:pointer">Open local .3dm file</label>
+    <input type="file" id="file-input" accept=".3dm" style="display:none">
+    <button class="btn-ghost" id="guide-btn-landing" style="margin-top:.25rem;font-size:.75rem;color:var(--muted)">? How to build with Woodstock Robotics</button>
+  </div>
+</div>
+
+<div id="drop-overlay">Drop .3dm file here</div>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div id="loading-text">Initialising…</div>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<div id="topbar">
+  <span class="filename" id="tb-filename">—</span>
+  <span class="sep" id="tb-client-sep" style="display:none">·</span>
+  <span id="tb-client" style="color:var(--muted);font-size:.78rem"></span>
+  <span class="sep">|</span>
+  <span id="tb-count">—</span>
+  <div class="spacer"></div>
+  <button class="btn-ghost" id="kits-toggle-btn" style="display:none">☰ Kits</button>
+  <button class="btn-ghost" id="print-manual-btn" style="display:none">⎙ Print Manual</button>
+  <button class="btn-ghost" id="find-btn" style="display:none">🔍 Find</button>
+  <button class="btn-ghost" id="guide-btn">? Guide</button>
+  <button class="btn-ghost" id="change-project-btn">← Change project</button>
+</div>
+
+<!-- Module legend panel -->
+<div id="module-panel">
+  <div class="ph">
+    <span class="ph-title">Modules</span>
+    <button class="ph-btn" id="show-all-btn" style="visibility:hidden">Show All</button>
+  </div>
+  <div id="module-list"></div>
+</div>
+
+<!-- Object info panel -->
+<div id="info-panel">
+  <div class="ph">
+    <span class="ph-title">Object Info</span>
+    <button class="ph-close" id="close-panel">✕</button>
+  </div>
+  <div id="panel-body"></div>
+  <div id="panel-footer"></div>
+</div>
+
+<!-- Assembly element list panel -->
+<div id="asm-list-panel">
+  <div class="alp-header">
+    <span class="alp-swatch" id="alp-swatch"></span>
+    <span class="alp-title" id="alp-title">—</span>
+    <span class="alp-count" id="alp-count"></span>
+  </div>
+  <div class="alp-scroll" id="alp-scroll"></div>
+</div>
+
+<!-- Assembly bar -->
+<div id="assembly-bar">
+  <div class="asm-progress-strip">
+    <div class="asm-progress-fill" id="asm-fill"></div>
+  </div>
+  <div class="asm-body">
+    <!-- Colored accent strip -->
+    <div class="asm-accent" id="asm-accent"></div>
+
+    <!-- Element info -->
+    <div class="asm-element">
+      <div class="asm-now-placing" id="asm-placing">Now placing</div>
+      <div class="asm-fullname" id="asm-name">—</div>
+      <div class="asm-meta">
+        <span class="swatch asm-sw" id="asm-swatch"></span>
+        <span id="asm-module-label" style="font-size:.62rem;color:var(--muted)">—</span>
+        <span style="color:var(--border)">·</span>
+        <span class="asm-step-label" id="asm-step-label">Step 1 of 1</span>
+      </div>
+      <div class="asm-dims" id="asm-dims"></div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="asm-nav">
+      <button class="asm-btn" id="asm-prev">← Prev</button>
+      <button class="asm-btn asm-btn--primary" id="asm-next">Next →</button>
+    </div>
+
+    <!-- Steps list toggle (phone only) -->
+    <button class="asm-btn" id="asm-list-btn" title="View all steps">☰</button>
+
+    <!-- Flag / Report -->
+    <button class="asm-flag" id="asm-flag-btn" title="Report an issue with this element">🚩</button>
+
+    <!-- Exit -->
+    <button class="asm-exit" id="asm-exit">✕ Exit Build</button>
+  </div>
+</div>
+
+<!-- Print / PDF modal -->
+<div id="print-modal">
+  <div id="print-panel">
+    <div class="pm-header">
+      <div>
+        <h2>Generate Assembly Manual</h2>
+        <p>One PDF per module — context overview + one page per category.</p>
+      </div>
+      <button class="pm-hclose" id="pm-close">✕</button>
+    </div>
+    <div class="pm-body">
+      <div>
+        <div class="pm-section-title">Modules to include</div>
+        <label class="pm-all-row">
+          <input type="checkbox" id="pm-check-all" checked>
+          <span style="flex:1;font-size:.82rem">Select All</span>
+        </label>
+        <div id="pm-module-list"></div>
+      </div>
+    </div>
+    <div class="pm-footer">
+      <div id="pm-progress"></div>
+      <button id="pm-generate" class="btn">⎙ Generate PDF</button>
+      <div class="pm-note">Opens as download · white background · A4 landscape</div>
+    </div>
+  </div>
+</div>
+
+<!-- Toolbar (hidden during assembly) -->
+<div id="toolbar">
+  <span><kbd>L-drag</kbd> Orbit</span>
+  <span><kbd>R-drag</kbd> Pan</span>
+  <span><kbd>Scroll</kbd> Zoom</span>
+  <span><kbd>Click</kbd> Select</span>
+  <span><kbd>F</kbd> Fit</span>
+  <span><kbd>Esc</kbd> Clear</span>
+</div>
+
+<!-- ── Guide modal ───────────────────────────────────────────────────────────── -->
+<div id="guide-modal">
+  <div id="guide-panel">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:.75rem 1.25rem;border-bottom:1px solid var(--border);flex-shrink:0">
+      <span style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--accent)">How to build with Woodstock Robotics</span>
+      <button class="ph-close" id="gd-close">✕</button>
+    </div>
+
+    <!-- Slide 1 -->
+    <div class="gd-slide active">
+      <div class="gd-icon">🏠</div>
+      <div class="gd-title">Welcome to Assembly Viewer</div>
+      <div class="gd-body">This guide walks you through how to use the app to assemble your Woodstock Robotics structure step by step.
+
+Use the arrows below to continue.</div>
+    </div>
+
+    <!-- Slide 2 -->
+    <div class="gd-slide">
+      <div class="gd-icon">🎨</div>
+      <div class="gd-title">Modules &amp; Kits</div>
+      <div class="gd-body">Your model is divided into Modules — colour-coded groups of structural elements that belong together.
+
+The left panel lists every module. Click a module to inspect it and see what's inside.</div>
+    </div>
+
+    <!-- Slide 3 -->
+    <div class="gd-slide">
+      <div class="gd-icon">🔨</div>
+      <div class="gd-title">Step-by-step Build Mode</div>
+      <div class="gd-body">Click a module a second time (or press "Enter Build Mode") to start the step-by-step assembly guide.
+
+Use ← Prev and Next → to walk through each element in the correct sequence. The element lights up so you can see exactly where it goes.</div>
+    </div>
+
+    <!-- Slide 4 -->
+    <div class="gd-slide">
+      <div class="gd-icon">🔍</div>
+      <div class="gd-title">Finding an Element</div>
+      <div class="gd-body">Not sure where a specific beam goes? Tap the 🔍 Find button in the top bar.
+
+Select a kit, then a category — all elements appear in a list. Click any element and the camera flies directly to it in the 3D model.</div>
+    </div>
+
+    <!-- Slide 5 – Category glossary -->
+    <div class="gd-slide">
+      <div class="gd-icon">📖</div>
+      <div class="gd-title">Element Categories</div>
+      <div class="gd-body">Each element name encodes its structural type:</div>
+      <div class="gd-glossary">
+        <div class="gd-cat"><div class="gd-cat-code">BR</div><div class="gd-cat-name">Bundrem</div></div>
+        <div class="gd-cat"><div class="gd-cat-code">TR</div><div class="gd-cat-name">Toprem</div></div>
+        <div class="gd-cat"><div class="gd-cat-code">LP</div><div class="gd-cat-name">Lodpost</div></div>
+        <div class="gd-cat"><div class="gd-cat-code">LH</div><div class="gd-cat-name">Løsholt</div></div>
+        <div class="gd-cat"><div class="gd-cat-code">OL</div><div class="gd-cat-name">Overlægger</div></div>
+        <div class="gd-cat"><div class="gd-cat-code">FS</div><div class="gd-cat-name">Forstærkning</div></div>
+        <div class="gd-cat"><div class="gd-cat-code">GU</div><div class="gd-cat-name">Gulv</div></div>
+        <div class="gd-cat"><div class="gd-cat-code">SP</div><div class="gd-cat-name">Spær</div></div>
+      </div>
+    </div>
+
+    <!-- Slide 6 -->
+    <div class="gd-slide">
+      <div class="gd-icon">🚩</div>
+      <div class="gd-title">Reporting an Issue</div>
+      <div class="gd-body">Spotted a wrong or damaged element during assembly?
+
+Press the 🚩 flag button in the assembly bar, add a short note — and optionally a photo — and your report goes straight to Woodstock Robotics. We'll get back to you quickly.</div>
+    </div>
+
+    <!-- Slide 7 -->
+    <div class="gd-slide">
+      <div class="gd-icon">✅</div>
+      <div class="gd-title">You're all set!</div>
+      <div class="gd-body">Close this guide and enter your project code to open your model.
+
+Happy building! 🪵</div>
+    </div>
+
+    <!-- Footer: progress dots + nav -->
+    <div class="gd-footer">
+      <div class="gd-dots">
+        <div class="gd-dot active"></div>
+        <div class="gd-dot"></div>
+        <div class="gd-dot"></div>
+        <div class="gd-dot"></div>
+        <div class="gd-dot"></div>
+        <div class="gd-dot"></div>
+        <div class="gd-dot"></div>
+      </div>
+      <div class="gd-nav">
+        <button id="gd-prev">← Prev</button>
+        <button id="gd-next" class="gd-primary">Next →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Find element modal (bottom sheet) ─────────────────────────────────────── -->
+<div id="find-modal">
+  <div id="find-panel">
+    <div class="fp-header">
+      <h2>🔍 Find Element</h2>
+      <button class="fp-close" id="fp-close">✕</button>
+    </div>
+    <div class="fp-body">
+      <div>
+        <div class="fp-label">Select Kit</div>
+        <div class="fp-kit-grid" id="fp-kit-grid"></div>
+      </div>
+      <div id="fp-cat-section" style="display:none">
+        <div class="fp-label">Select Category</div>
+        <div class="fp-cat-grid" id="fp-cat-grid"></div>
+      </div>
+      <div id="fp-el-section" style="display:none">
+        <div class="fp-label">Elements — click to fly camera there</div>
+        <div class="fp-el-list" id="fp-el-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Report / Flag modal (bottom sheet) ────────────────────────────────────── -->
+<div id="report-modal">
+  <div id="report-panel">
+    <div class="rp-header">
+      <div>
+        <h2>🚩 Report an Issue</h2>
+        <div class="rp-elem" id="rp-elem-name"></div>
+      </div>
+      <button class="ph-close" id="rp-close">✕</button>
+    </div>
+    <div class="rp-body">
+      <div>
+        <div class="rp-label">Describe the issue</div>
+        <textarea id="rp-note" placeholder="e.g. Element is damaged / wrong size / missing from kit…"></textarea>
+      </div>
+      <div>
+        <div class="rp-label">Photo (optional)</div>
+        <div class="rp-photo-row">
+          <img id="rp-photo-preview" alt="preview">
+          <button class="rp-photo-btn" id="rp-photo-btn">📷 Screenshot</button>
+          <button class="rp-photo-btn" id="rp-upload-btn">📁 Upload photo</button>
+          <input type="file" id="rp-file-input" accept="image/*" style="display:none">
+        </div>
+      </div>
+      <div id="rp-status"></div>
+    </div>
+    <div class="rp-footer">
+      <button class="asm-btn asm-btn--primary" id="rp-submit" style="flex:1">Send Report</button>
+      <button class="asm-btn" id="rp-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls }   from 'three/addons/controls/OrbitControls.js';
+import { Rhino3dmLoader }  from 'three/addons/loaders/3DMLoader.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+// ── Scene ────────────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('canvas');
+const scene  = new THREE.Scene();
+scene.background = new THREE.Color(0x0d0f14);
+
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.001, 1e7);
+camera.position.set(10, 8, 12);
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+
+// CSS2D label renderer (overlaid on canvas, pointer-events blocked so 3D still works)
+const labelRenderer = new CSS2DRenderer();
+labelRenderer.setSize(innerWidth, innerHeight);
+Object.assign(labelRenderer.domElement.style, {
+  position: 'fixed', top: '0', left: '0', pointerEvents: 'none', zIndex: '6',
+});
+document.body.appendChild(labelRenderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+
+// Ghost materials — used to render non-active modules during assembly
+const ghostLineMat = new THREE.LineBasicMaterial({ color: 0x3d4155, transparent: true, opacity: 0.18 });
+const ghostMeshMat = new THREE.MeshStandardMaterial({ color: 0x3d4155, transparent: true, opacity: 0.12, depthWrite: false });
+
+// Edge overlay material — shared, never disposed
+const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x050608, transparent: true, opacity: 0.55 });
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+sun.position.set(5, 12, 8);
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0x889bb8, 0.35);
+fill.position.set(-8, 2, -6);
+scene.add(fill);
+
+function makeGrid(s) {
+  return new THREE.GridHelper(s, Math.max(10, Math.round(s / 50)), 0x1a1c26, 0x141619);
+}
+
+const clock = new THREE.Clock();
+let cameraAnim = null;    // active fly-to animation
+
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2;
+}
+
+function flyCamera(toPos, toTarget, duration, onComplete) {
+  controls.enabled = false;
+  cameraAnim = {
+    fromPos:    camera.position.clone(),
+    toPos,
+    fromTarget: controls.target.clone(),
+    toTarget,
+    duration,
+    elapsed:    0,
+    onComplete
+  };
+}
+
+(function loop() {
+  requestAnimationFrame(loop);
+  const delta = clock.getDelta();
+
+  if (cameraAnim) {
+    cameraAnim.elapsed += delta;
+    const t = Math.min(cameraAnim.elapsed / cameraAnim.duration, 1);
+    const e = easeInOutCubic(t);
+    camera.position.lerpVectors(cameraAnim.fromPos, cameraAnim.toPos, e);
+    controls.target.lerpVectors(cameraAnim.fromTarget, cameraAnim.toTarget, e);
+    controls.update();
+    if (t >= 1) {
+      const cb = cameraAnim.onComplete;
+      cameraAnim = null;
+      controls.enabled = true;
+      cb?.();
+    }
+  } else {
+    controls.update();
+  }
+
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+})();
+
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  labelRenderer.setSize(innerWidth, innerHeight);
+});
+
+// ── Loader ───────────────────────────────────────────────────────────────────────
+// In dev the viewer is on :3001 and the API on :3000; in production they share the same origin.
+const API_BASE = location.protocol === 'file:'
+  ? 'http://localhost:4000'
+  : location.origin;
+
+const loader = new Rhino3dmLoader();
+loader.setLibraryPath('https://cdn.jsdelivr.net/npm/rhino3dm@8.4.0/');
+
+// ── State ────────────────────────────────────────────────────────────────────────
+let docGroup      = null;
+let docLayers     = {};
+let selectables   = [];
+let moduleColorMap = {};
+let moduleObjects  = {};
+let selectedModule = null;
+let hoveredModule  = null;
+let isolatedModule = null;
+let elementLabels  = [];     // per-element name labels shown during assembly overview
+
+// Assembly
+let assemblyModule = null;
+let assemblySteps  = [];   // sorted objects for current module
+let currentStep    = 0;
+
+let mouseDownX = 0, mouseDownY = 0, didDrag = false;
+
+// ── Load file ────────────────────────────────────────────────────────────────────
+// ── Landing helpers ──────────────────────────────────────────────────────────────
+function hideLanding() {
+  document.getElementById('landing').style.display = 'none';
+}
+function showLanding() {
+  clearModel();
+  document.getElementById('topbar').classList.remove('show');
+  document.getElementById('landing').style.display = '';
+  clearCodeError();
+  document.getElementById('code-input').value = '';
+}
+function showCodeError(msg) {
+  const el = document.getElementById('code-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function clearCodeError() {
+  const el = document.getElementById('code-error');
+  el.textContent = '';
+  el.style.display = 'none';
+}
+
+// ── Shared group setup ───────────────────────────────────────────────────────────
+function _applyGroup(group, displayName, clientName) {
+  group.rotation.set(-Math.PI / 2, 0, 0);
+  docGroup  = group;
+  docLayers = group.userData.layers || {};
+  selectables = [];
+  group.traverse(obj => {
+    if (obj.isMesh || obj.isLine || obj.isPoints) selectables.push(obj);
+  });
+  applyModuleColors(selectables);
+  buildEdges(selectables);
+  buildModuleLegend();
+  scene.add(group);
+  group.updateMatrixWorld(true);
+  const loadBox = new THREE.Box3().setFromObject(group);
+  group.position.sub(loadBox.getCenter(new THREE.Vector3()));
+  group.updateMatrixWorld(true);
+  createModuleLabels();
+  fitCameraToObjects(selectables);
+  hideLanding();
+  document.getElementById('topbar').classList.add('show');
+  document.getElementById('tb-filename').textContent = displayName;
+  const clientEl  = document.getElementById('tb-client');
+  const clientSep = document.getElementById('tb-client-sep');
+  clientEl.textContent    = clientName || '';
+  clientSep.style.display = clientName ? '' : 'none';
+  document.getElementById('tb-count').textContent =
+    `${selectables.length} object${selectables.length !== 1 ? 's' : ''}`;
+  // document.getElementById('print-manual-btn').style.display = ''; // hidden until print bugs are fixed
+  document.getElementById('find-btn').style.display = '';
+  hideLoading();
+}
+
+function loadFile(file) {
+  showLoading(`Loading ${file.name}…`);
+  const url = URL.createObjectURL(file);
+  loader.load(url, group => {
+    URL.revokeObjectURL(url);
+    clearModel();
+    _applyGroup(group, file.name, '');
+  }, undefined, err => {
+    URL.revokeObjectURL(url);
+    hideLoading();
+    alert('Could not load file:\n' + (err.message || err));
+    console.error(err);
+  });
+}
+
+async function loadByCode(code) {
+  clearCodeError();
+  showLoading(`Looking up project…`);
+  try {
+    const infoRes = await fetch(`${API_BASE}/api/viewer/project/${encodeURIComponent(code)}`);
+    if (!infoRes.ok) {
+      hideLoading();
+      showCodeError('Invalid code. Please check and try again.');
+      return;
+    }
+    const info = await infoRes.json();
+    showLoading(`Loading ${info.filename}…`);
+    const fileUrl = `${API_BASE}/api/viewer/files/${encodeURIComponent(code)}/${encodeURIComponent(info.filename)}`;
+    loader.load(fileUrl, group => {
+      clearModel();
+      _applyGroup(group, info.projectName || info.filename, info.clientName || '');
+    }, undefined, err => {
+      hideLoading();
+      showCodeError('Failed to load model file.');
+      console.error(err);
+    });
+  } catch (e) {
+    hideLoading();
+    showCodeError('Network error. Is the server running?');
+    console.error(e);
+  }
+}
+
+function clearModel() {
+  exitAssembly(false);
+  deselect();
+  showAllModules(false);
+  if (docGroup) {
+    scene.remove(docGroup);
+    docGroup.traverse(o => {
+      o.geometry?.dispose();
+      if (o.userData._isEdge) return;   // edgeMaterial is shared — never dispose it
+      if (Array.isArray(o.material)) o.material.forEach(m => m.dispose());
+      else o.material?.dispose();
+    });
+  }
+  removeModuleLabels();
+  selectables = []; docLayers = {}; docGroup = null;
+  moduleColorMap = {}; moduleObjects = {};
+  document.getElementById('module-panel').classList.remove('show');
+  document.getElementById('module-list').innerHTML = '';
+  document.getElementById('print-manual-btn').style.display = 'none';
+  document.getElementById('find-btn').style.display = 'none';
+}
+
+// ── File inputs ──────────────────────────────────────────────────────────────────
+const fi = document.getElementById('file-input');
+fi.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); e.target.value = ''; });
+
+// ── Code entry ───────────────────────────────────────────────────────────────────
+document.getElementById('code-submit').addEventListener('click', () => {
+  const code = document.getElementById('code-input').value.trim().toUpperCase();
+  if (!code) { showCodeError('Please enter a project code.'); return; }
+  loadByCode(code);
+});
+document.getElementById('code-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('code-submit').click();
+});
+document.getElementById('change-project-btn').addEventListener('click', showLanding);
+
+// ── Auto-load from ?code= URL param ──────────────────────────────────────────────
+(function () {
+  const params = new URLSearchParams(window.location.search);
+  const urlCode = params.get('code');
+  if (urlCode) loadByCode(urlCode.toUpperCase());
+})();
+
+document.addEventListener('dragover',  e => { e.preventDefault(); document.getElementById('drop-overlay').classList.add('show'); });
+document.addEventListener('dragleave', e => { if (!e.relatedTarget) document.getElementById('drop-overlay').classList.remove('show'); });
+document.addEventListener('drop', e => {
+  e.preventDefault();
+  document.getElementById('drop-overlay').classList.remove('show');
+  const f = [...e.dataTransfer.files].find(f => f.name.toLowerCase().endsWith('.3dm'));
+  if (f) loadFile(f);
+});
+
+// ── Name parsing ─────────────────────────────────────────────────────────────────
+function getModule(name)   { if (!name) return '(unnamed)'; return name.split('_')[0] || name; }
+function getCategory(name) { const p = name.split('_'); return p[1] || '—'; }
+function getSequence(name) { const p = name.split('_'); const n = parseInt(p[p.length - 1], 10); return isNaN(n) ? 9999 : n; }
+
+// ── Module colours ────────────────────────────────────────────────────────────────
+// Warm wood/timber palette — distinct enough to tell modules apart, all earthy tones
+const WOOD_PALETTE = [
+  0xC4925A, // pine
+  0xA06840, // oak
+  0xD4B070, // birch
+  0x8B5E38, // walnut
+  0xBF7A50, // cedar
+  0xD4945C, // cherry
+  0xE0C080, // maple
+  0x785030, // dark oak
+  0xC8A868, // teak
+  0xB07848, // mahogany
+];
+
+function applyModuleColors(objs) {
+  const modules = [...new Set(objs.map(o => getModule(o.name || o.userData?.attributes?.name || '')))].sort();
+  moduleColorMap = {}; moduleObjects = {};
+  modules.forEach((mod, i) => {
+    moduleColorMap[mod] = new THREE.Color(WOOD_PALETTE[i % WOOD_PALETTE.length]);
+    moduleObjects[mod]  = [];
+  });
+  objs.forEach(obj => {
+    const name = obj.name || obj.userData?.attributes?.name || '';
+    const mod  = getModule(name);
+    const col  = moduleColorMap[mod];
+    if (!col) return;
+    const src = Array.isArray(obj.material) ? obj.material[0] : obj.material;
+    if (src) {
+      const mat = src.clone();
+      mat.color.copy(col);
+      if (obj.isMesh) {
+        // Push the mesh surface back slightly so edge lines sit cleanly on top
+        mat.polygonOffset      = true;
+        mat.polygonOffsetFactor = 1;
+        mat.polygonOffsetUnits  = 1;
+      }
+      obj.material = mat;
+    }
+    moduleObjects[mod]?.push(obj);
+  });
+}
+
+// ── Edge overlays ─────────────────────────────────────────────────────────────────
+// Adds a LineSegments child to every mesh so element boundaries are visible.
+function buildEdges(objs) {
+  objs.forEach(obj => {
+    if (!obj.isMesh || !obj.geometry) return;
+    try {
+      const edgesGeo = new THREE.EdgesGeometry(obj.geometry, 12); // 12° threshold → clean hard edges
+      const lines    = new THREE.LineSegments(edgesGeo, edgeMaterial);
+      lines.userData._isEdge = true;
+      obj.add(lines);
+    } catch (_) { /* skip incompatible geometry silently */ }
+  });
+}
+
+// ── Module legend ─────────────────────────────────────────────────────────────────
+function buildModuleLegend() {
+  const list = document.getElementById('module-list');
+  list.innerHTML = '';
+  Object.entries(moduleColorMap).forEach(([mod, color]) => {
+    const count = moduleObjects[mod]?.length ?? 0;
+    const item  = document.createElement('div');
+    item.className = 'mod-item'; item.dataset.mod = mod;
+    item.innerHTML = `
+      <span class="swatch" style="background:#${color.getHexString()};width:11px;height:11px;"></span>
+      <span class="mod-name">${esc(mod)}</span>
+      <span class="mod-count">${count}</span>`;
+    item.addEventListener('click', () => {
+      if (assemblyModule === mod) exitAssembly(true);
+      else enterAssembly(mod);
+    });
+    list.appendChild(item);
+  });
+  // On phone the panel is a bottom sheet — don't auto-open it; user taps ☰ Kits
+  if (typeof IS_PHONE === 'undefined' || !IS_PHONE)
+    document.getElementById('module-panel').classList.add('show');
+  refreshLegendState();
+}
+
+function showAllModules(doFit = true) {
+  isolatedModule = null;
+  selectables.forEach(o => { o.visible = true; });
+  if (doFit && selectables.length) fitCameraToObjects(selectables);
+  refreshLegendState();
+}
+
+function refreshLegendState() {
+  const iso = isolatedModule;
+  document.querySelectorAll('.mod-item').forEach(el => {
+    el.classList.toggle('active',  el.dataset.mod === iso);
+    el.classList.toggle('dimmed',  iso !== null && el.dataset.mod !== iso);
+  });
+  document.getElementById('show-all-btn').style.visibility = iso ? 'visible' : 'hidden';
+}
+
+document.getElementById('show-all-btn').addEventListener('click', () => {
+  if (assemblyModule) exitAssembly(true);
+  else showAllModules(true);
+});
+
+// ── Module labels (CSS2D) ────────────────────────────────────────────────────────
+let moduleLabels = [];
+
+function createModuleLabels() {
+  removeModuleLabels();
+  Object.entries(moduleObjects).forEach(([mod, objs]) => {
+    if (!objs.length) return;
+    const col = moduleColorMap[mod];
+    if (!col) return;
+    const box = new THREE.Box3();
+    objs.forEach(o => box.expandByObject(o));
+    if (box.isEmpty()) return;
+    const center = box.getCenter(new THREE.Vector3());
+
+    const div = document.createElement('div');
+    div.className   = 'mod-label';
+    div.textContent = mod;
+    div.style.background = '#' + col.getHexString();
+
+    const label = new CSS2DObject(div);
+    label.position.copy(center);
+    scene.add(label);
+    moduleLabels.push(label);
+  });
+}
+
+function removeModuleLabels() {
+  moduleLabels.forEach(l => scene.remove(l));
+  moduleLabels = [];
+}
+
+function setLabelsVisible(v) {
+  moduleLabels.forEach(l => {
+    l.visible = v;
+    l.element.style.display = v ? '' : 'none';   // belt-and-suspenders hide
+  });
+}
+
+function createElementLabels() {
+  removeElementLabels();
+  assemblySteps.forEach(obj => {
+    const name = obj.name || obj.userData?.attributes?.name || '';
+    if (!name) return;
+    const box = new THREE.Box3().setFromObject(obj);
+    if (box.isEmpty()) return;
+    const center = box.getCenter(new THREE.Vector3());
+
+    const div = document.createElement('div');
+    div.className   = 'elem-label';
+    div.textContent = name;
+
+    const lbl = new CSS2DObject(div);
+    lbl.position.copy(center);
+    scene.add(lbl);
+    elementLabels.push(lbl);
+  });
+}
+
+function removeElementLabels() {
+  elementLabels.forEach(l => { scene.remove(l); l.element?.remove(); });
+  elementLabels = [];
+}
+
+
+// ── Assembly ──────────────────────────────────────────────────────────────────────
+function enterAssembly(mod) {
+  deselect();
+  hoveredModule  = null;
+  assemblyModule = mod;
+  isolatedModule = mod;
+  currentStep    = -1;   // -1 = module overview (before step-by-step)
+
+  // Sort objects by sequence number
+  const objs = (moduleObjects[mod] || []).slice();
+  objs.sort((a, b) => {
+    const na = a.name || a.userData?.attributes?.name || '';
+    const nb = b.name || b.userData?.attributes?.name || '';
+    return getSequence(na) - getSequence(nb);
+  });
+  assemblySteps = objs;
+
+  // Ghost the rest of the house — keep it visible for spatial context
+  selectables.forEach(obj => {
+    const name = obj.name || obj.userData?.attributes?.name || '';
+    if (getModule(name) !== mod) {
+      obj.userData._ghostMat = Array.isArray(obj.material) ? obj.material[0] : obj.material;
+      obj.material = obj.isLine || obj.isPoints ? ghostLineMat : ghostMeshMat;
+      obj.visible  = true;
+      // Hide edge overlays so the ghost stays subtle
+      obj.children.forEach(c => { if (c.userData._isEdge) c.visible = false; });
+    }
+  });
+
+  // Show the whole module at its base colour (overview state)
+  assemblySteps.forEach(obj => { setModuleColor(obj); obj.visible = true; });
+
+  setLabelsVisible(false);
+  document.getElementById('assembly-bar').classList.add('show');
+  // On phone the list is a manually-toggled bottom sheet — don't auto-open it
+  if (typeof IS_PHONE === 'undefined' || !IS_PHONE)
+    document.getElementById('asm-list-panel').classList.add('show');
+  document.getElementById('module-panel').classList.remove('show');
+  document.getElementById('toolbar').classList.add('hidden');
+  refreshLegendState();
+  buildAsmList();
+  updateAssemblyUI(-1, assemblySteps.length);   // populate bar before fly
+
+  // Compute the module's bounding box for the fly-to target
+  const box = new THREE.Box3();
+  assemblySteps.forEach(o => box.expandByObject(o));
+  const center = box.getCenter(new THREE.Vector3());
+  const size   = box.getSize(new THREE.Vector3());
+  const radius = Math.max(size.x, size.y, size.z) * 0.7;
+  const dist   = radius / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2));
+  const endPos = center.clone().addScaledVector(new THREE.Vector3(1, 0.7, 1.2).normalize(), dist * 1.1);
+
+  camera.near = dist * 0.0005;
+  camera.far  = dist * 200;
+  camera.updateProjectionMatrix();
+
+  // Fly the camera to the module; no floating labels in overview — sidebar shows the list
+  flyCamera(endPos, center, 1.5, () => { });
+}
+
+function exitAssembly(doShowAll = true) {
+  if (!assemblyModule) return;
+
+  // Restore assembly-step objects to their module colour
+  assemblySteps.forEach(obj => {
+    setModuleColor(obj);
+    obj.visible = true;
+  });
+
+  // Restore every ghosted object and its edge overlay
+  selectables.forEach(obj => {
+    if (Object.prototype.hasOwnProperty.call(obj.userData, '_ghostMat')) {
+      obj.material = obj.userData._ghostMat;
+      delete obj.userData._ghostMat;
+      obj.visible = true;
+      obj.children.forEach(c => { if (c.userData._isEdge) c.visible = true; });
+    }
+  });
+
+  assemblyModule = null;
+  assemblySteps  = [];
+  currentStep    = 0;
+
+  removeElementLabels();
+  document.getElementById('assembly-bar').classList.remove('show');
+  document.getElementById('asm-list-panel').classList.remove('show');
+  document.getElementById('asm-list-panel').classList.remove('phone-open');
+  // On phone the module panel is a bottom sheet — don't auto-open it on exit
+  if (typeof IS_PHONE === 'undefined' || !IS_PHONE)
+    document.getElementById('module-panel').classList.add('show');
+  document.getElementById('toolbar').classList.remove('hidden');
+  setLabelsVisible(true);
+
+  if (doShowAll) showAllModules(true);
+}
+
+function goToStep(idx) {
+  removeElementLabels();   // clear overview labels whenever stepping
+
+  const total = assemblySteps.length;
+
+  // Pressing Prev from step 0 goes back to the module overview
+  if (idx < 0) {
+    currentStep = -1;
+    assemblySteps.forEach(obj => { setModuleColor(obj); obj.visible = true; });
+    updateAssemblyUI(-1, total);
+    // No floating labels in overview — the sidebar list already shows all elements
+    return;
+  }
+
+  currentStep = Math.max(0, Math.min(idx, total - 1));
+
+  assemblySteps.forEach((obj, i) => {
+    const mat = Array.isArray(obj.material) ? obj.material[0] : obj.material;
+    if (i < currentStep) {
+      // Already placed — module colour
+      obj.visible = true;
+      if (mat) { mat.color.copy(moduleColorMap[assemblyModule]); if (mat.emissive) mat.emissive.set(0); }
+    } else if (i === currentStep) {
+      // Currently placing — bright white + colour glow
+      obj.visible = true;
+      if (mat) {
+        mat.color.set(0xffffff);
+        if (mat.emissive) { mat.emissive.copy(moduleColorMap[assemblyModule]); mat.emissive.multiplyScalar(0.35); }
+      }
+    } else {
+      // Not yet placed — hidden
+      obj.visible = false;
+    }
+  });
+
+  // Show a single floating label on just the current element
+  const curObj = assemblySteps[currentStep];
+  if (curObj) {
+    const name = curObj.name || curObj.userData?.attributes?.name || '';
+    if (name) {
+      const box = new THREE.Box3().setFromObject(curObj);
+      if (!box.isEmpty()) {
+        const center = box.getCenter(new THREE.Vector3());
+        const div = document.createElement('div');
+        div.className   = 'elem-label';
+        div.textContent = name;
+        const lbl = new CSS2DObject(div);
+        lbl.position.copy(center);
+        scene.add(lbl);
+        elementLabels.push(lbl);
+      }
+    }
+  }
+
+  updateAssemblyUI(currentStep, total);
+}
+
+function setModuleColor(obj) {
+  const name = obj.name || obj.userData?.attributes?.name || '';
+  const col  = moduleColorMap[getModule(name)];
+  const mat  = Array.isArray(obj.material) ? obj.material[0] : obj.material;
+  if (mat && col) { mat.color.copy(col); if (mat.emissive) mat.emissive.set(0); }
+}
+
+function buildAsmList() {
+  const mod = assemblyModule || '';
+  const col = moduleColorMap[mod];
+  const hex = col ? '#' + col.getHexString() : 'var(--accent)';
+  document.getElementById('alp-swatch').style.background = hex;
+  document.getElementById('alp-title').textContent = mod;
+  document.getElementById('alp-count').textContent = `${assemblySteps.length} elements`;
+  const scroll = document.getElementById('alp-scroll');
+  scroll.innerHTML = '';
+  assemblySteps.forEach((obj, i) => {
+    const name = obj.name || obj.userData?.attributes?.name || `Element ${i + 1}`;
+    const div = document.createElement('div');
+    div.className = 'ali';
+    div.dataset.step = i;
+    div.innerHTML =
+      `<span class="ali-status">·</span>` +
+      `<span class="ali-num">${String(i + 1).padStart(2, '0')}</span>` +
+      `<span class="ali-name" title="${name}">${name}</span>`;
+    div.addEventListener('click', () => goToStep(i));
+    scroll.appendChild(div);
+  });
+}
+
+function updateAsmList(step) {
+  document.querySelectorAll('.ali').forEach((el, i) => {
+    el.classList.remove('done', 'active');
+    const s = el.querySelector('.ali-status');
+    if (step === -1) {
+      s.textContent = '·';
+    } else if (i < step) {
+      el.classList.add('done');
+      s.textContent = '✓';
+    } else if (i === step) {
+      el.classList.add('active');
+      s.textContent = '→';
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } else {
+      s.textContent = '·';
+    }
+  });
+}
+
+function updateAssemblyUI(step, total) {
+  const isOverview = (step === -1);
+  const obj  = isOverview ? null : assemblySteps[step];
+  const name = obj ? (obj.name || obj.userData?.attributes?.name || '') : '';
+  const mod  = assemblyModule || '';
+  const col  = moduleColorMap[mod];
+  const hex  = col ? '#' + col.getHexString() : 'var(--accent)';
+
+  document.getElementById('asm-accent').style.background     = hex;
+  document.getElementById('asm-swatch').style.background     = hex;
+  document.getElementById('asm-module-label').textContent    = mod;
+
+  if (isOverview) {
+    document.getElementById('asm-placing').textContent       = 'Module overview';
+    document.getElementById('asm-name').textContent          = `${total} elements — press Start to begin`;
+    document.getElementById('asm-fill').style.width          = '0%';
+    document.getElementById('asm-step-label').textContent    = 'Overview';
+    document.getElementById('asm-prev').disabled             = true;
+    document.getElementById('asm-next').disabled             = false;
+    document.getElementById('asm-next').textContent          = (typeof IS_PHONE !== 'undefined' && IS_PHONE) ? 'Start →' : 'Start Build →';
+    document.getElementById('asm-next').classList.add('asm-btn--primary');
+  } else {
+    document.getElementById('asm-placing').textContent       = 'Now placing';
+    document.getElementById('asm-name').textContent          = name || '—';
+    document.getElementById('asm-fill').style.width          = `${((step + 1) / total) * 100}%`;
+    document.getElementById('asm-step-label').textContent    = `Step ${step + 1} of ${total}`;
+    document.getElementById('asm-prev').disabled             = false;
+    document.getElementById('asm-next').disabled             = step === total - 1;
+    document.getElementById('asm-next').textContent          = step === total - 1 ? '✓ Done' : 'Next →';
+    document.getElementById('asm-prev').textContent          = step === 0 ? ((typeof IS_PHONE !== 'undefined' && IS_PHONE) ? '← Back' : '← Overview') : '← Prev';
+    if (step === total - 1) {
+      document.getElementById('asm-next').classList.remove('asm-btn--primary');
+    } else {
+      document.getElementById('asm-next').classList.add('asm-btn--primary');
+    }
+  }
+
+  updateAsmList(step);
+  updateDims(isOverview ? null : (assemblySteps[step] || null));
+  document.getElementById('asm-flag-btn').style.opacity = isOverview ? '0.3' : '';
+  document.getElementById('asm-flag-btn').style.pointerEvents = isOverview ? 'none' : '';
+}
+
+document.getElementById('asm-prev').addEventListener('click', () => goToStep(currentStep - 1));
+document.getElementById('asm-next').addEventListener('click', () => {
+  if (currentStep === -1) goToStep(0);  // from overview → step 0
+  else goToStep(currentStep + 1);
+});
+document.getElementById('asm-exit').addEventListener('click', () => exitAssembly(true));
+
+// ── Selection — module-level (disabled during assembly) ──────────────────────────
+const raycaster = new THREE.Raycaster();
+raycaster.params.Line = { threshold: 0.4 };
+
+let isPointerDown = false;
+canvas.addEventListener('mousedown', e => { mouseDownX = e.clientX; mouseDownY = e.clientY; didDrag = false; isPointerDown = true; });
+canvas.addEventListener('mouseup',   () => { isPointerDown = false; });
+
+// ── Hover highlight ───────────────────────────────────────────────────────────────
+let hoverThrottle = 0;
+canvas.addEventListener('mousemove', e => {
+  // Track drag for click-vs-drag disambiguation
+  if (Math.hypot(e.clientX - mouseDownX, e.clientY - mouseDownY) > 5) didDrag = true;
+
+  // Hover only in overview mode, not while orbiting/panning
+  if (assemblyModule || isPointerDown || !selectables.length) {
+    if (hoveredModule) { applyHoverExit(hoveredModule); hoveredModule = null; }
+    return;
+  }
+
+  // Throttle to ~40fps to keep raycast cheap
+  const now = performance.now();
+  if (now - hoverThrottle < 25) return;
+  hoverThrottle = now;
+
+  const ndc = new THREE.Vector2((e.clientX / innerWidth) * 2 - 1, (e.clientY / innerHeight) * -2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  const hits  = raycaster.intersectObjects(selectables.filter(o => o.visible), false);
+  const name  = hits.length ? (hits[0].object.name || hits[0].object.userData?.attributes?.name || '') : '';
+  const newMod = hits.length ? getModule(name) : null;
+  if (newMod === hoveredModule) return;
+
+  if (hoveredModule) applyHoverExit(hoveredModule);
+  hoveredModule = newMod;
+  if (hoveredModule) applyHoverEnter(hoveredModule);
+
+  canvas.style.cursor = newMod ? 'pointer' : '';
+});
+
+function applyHoverEnter(mod) {
+  if (mod === selectedModule) return;   // already highlighted by selection
+  const col = moduleColorMap[mod];
+  if (!col) return;
+  // When something is selected: un-dim the hovered module to its base color.
+  // When nothing is selected: brighten it slightly.
+  const target = selectedModule
+    ? col.clone()
+    : col.clone().lerp(new THREE.Color(0xffffff), 0.3);
+  (moduleObjects[mod] || []).forEach(o => {
+    const mat = Array.isArray(o.material) ? o.material[0] : o.material;
+    if (mat) mat.color.copy(target);
+  });
+}
+
+function applyHoverExit(mod) {
+  if (mod === selectedModule) return;   // don't clobber selection
+  if (selectedModule) {
+    // Re-dim back to the dimmed state used by selection
+    (moduleObjects[mod] || []).forEach(o => {
+      const mat = Array.isArray(o.material) ? o.material[0] : o.material;
+      if (mat) mat.color.copy(moduleColorMap[mod]).multiplyScalar(0.28);
+    });
+  } else {
+    (moduleObjects[mod] || []).forEach(setModuleColor);
+  }
+}
+canvas.addEventListener('click', e => {
+  if (didDrag || assemblyModule || !selectables.length) return;
+  const ndc = new THREE.Vector2((e.clientX / innerWidth) * 2 - 1, (e.clientY / innerHeight) * -2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  const hits = raycaster.intersectObjects(selectables.filter(o => o.visible), false);
+  hits.length ? select(hits[0].object) : deselect();
+});
+
+document.getElementById('close-panel').addEventListener('click', deselect);
+
+// select() takes the hit object, extracts its module, and selects the whole module.
+// A second click on the same module enters assembly mode.
+function select(obj) {
+  const name = obj.name || obj.userData?.attributes?.name || '';
+  const mod  = getModule(name);
+  if (!moduleObjects[mod]) return;
+
+  if (selectedModule === mod) {
+    // Second click on the same module → jump straight into assembly
+    enterAssembly(mod);
+    return;
+  }
+
+  deselect();
+  hoveredModule  = null;   // reset so hover recomputes after selection
+  selectedModule = mod;
+
+  // Brighten the selected module
+  const col    = moduleColorMap[mod];
+  const bright = col ? col.clone().lerp(new THREE.Color(0xffffff), 0.5) : null;
+  (moduleObjects[mod] || []).forEach(o => {
+    const mat = Array.isArray(o.material) ? o.material[0] : o.material;
+    if (mat && bright) { mat.color.copy(bright); if (mat.emissive) mat.emissive.set(0); }
+  });
+
+  // Dim every other module so the selection stands out
+  Object.entries(moduleObjects).forEach(([m, objs]) => {
+    if (m === mod) return;
+    objs.forEach(o => {
+      const mat = Array.isArray(o.material) ? o.material[0] : o.material;
+      if (mat) mat.color.copy(moduleColorMap[m]).multiplyScalar(0.28);
+    });
+  });
+
+  openModulePanel(mod);
+}
+
+function deselect() {
+  if (!selectedModule) return;
+  selectables.forEach(setModuleColor);
+  selectedModule = null;
+  hoveredModule  = null;   // reset so next mousemove recomputes
+  canvas.style.cursor = '';
+  closeInfoPanel();
+}
+
+// ── Info panel (module-level) ─────────────────────────────────────────────────────
+function openModulePanel(mod) {
+  const objs = moduleObjects[mod] || [];
+  const col  = moduleColorMap[mod];
+  const hex  = col ? '#' + col.getHexString() : 'var(--accent)';
+
+  // Tally categories + sequence range
+  const cats = {};
+  let seqMin = Infinity, seqMax = -Infinity;
+  objs.forEach(o => {
+    const n   = o.name || o.userData?.attributes?.name || '';
+    const cat = getCategory(n);
+    cats[cat] = (cats[cat] || 0) + 1;
+    const s = getSequence(n);
+    if (s !== 9999) { seqMin = Math.min(seqMin, s); seqMax = Math.max(seqMax, s); }
+  });
+
+  const row = (k, v) => `<div class="pr"><div class="pr-key">${esc(k)}</div><div class="pr-val">${v}</div></div>`;
+
+  const seqLabel = isFinite(seqMin)
+    ? (seqMin === seqMax ? String(seqMin) : `${seqMin} – ${seqMax}`)
+    : '—';
+
+  let html = `
+    <div class="ps">
+      <div class="ps-title">Module</div>
+      <div style="display:flex;align-items:center;gap:.7rem;padding:.55rem 0 .4rem">
+        <span style="display:inline-block;width:18px;height:18px;border-radius:5px;background:${hex};flex-shrink:0"></span>
+        <span style="font-size:1.3rem;font-weight:800;letter-spacing:-.01em;line-height:1">${esc(mod)}</span>
+      </div>
+      ${row('Total elements', String(objs.length))}
+      ${row('Assembly steps', seqLabel)}
+    </div>
+    <div class="ps">
+      <div class="ps-title">Categories</div>
+      ${Object.entries(cats).sort(([a],[b]) => a.localeCompare(b))
+          .map(([cat, n]) => row(cat === '—' ? 'Uncategorised' : esc(cat), `${n}×`)).join('')}
+    </div>`;
+
+  const footerHtml = `
+    <button id="enter-build-btn" class="btn"
+      style="width:100%;display:flex;align-items:center;justify-content:center;gap:.5rem">
+      ▶&ensp;Enter Build Mode
+    </button>
+    <div style="font-size:.66rem;color:var(--muted);text-align:center;margin-top:.45rem">
+      or click the module again
+    </div>`;
+
+  document.querySelector('#info-panel .ph-title').textContent = 'Module Info';
+  document.getElementById('panel-body').innerHTML = html;
+  const footer = document.getElementById('panel-footer');
+  footer.innerHTML = footerHtml;
+  footer.classList.add('active');
+  document.getElementById('enter-build-btn')
+    .addEventListener('click', () => enterAssembly(mod), { once: true });
+  document.getElementById('info-panel').classList.add('open');
+}
+
+function closeInfoPanel() {
+  document.querySelector('#info-panel .ph-title').textContent = 'Object Info';
+  document.getElementById('info-panel').classList.remove('open');
+  const footer = document.getElementById('panel-footer');
+  footer.innerHTML = '';
+  footer.classList.remove('active');
+}
+
+// ── Camera ───────────────────────────────────────────────────────────────────────
+function fitCameraToObjects(objs) {
+  const box = new THREE.Box3();
+  objs.forEach(o => box.expandByObject(o));
+  if (box.isEmpty()) return;
+
+  const center = box.getCenter(new THREE.Vector3());
+  const size   = box.getSize(new THREE.Vector3());
+  const radius = Math.max(size.x, size.y, size.z) * 0.7;
+  const dist   = radius / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2));
+
+  // Set orbit target to model center first, then position camera around it
+  controls.target.copy(center);
+
+  camera.position.copy(center).addScaledVector(
+    new THREE.Vector3(1, 0.7, 1.2).normalize(),
+    dist * 1.1
+  );
+  camera.near = dist * 0.0005;
+  camera.far  = dist * 200;
+  camera.updateProjectionMatrix();
+
+  // Disable damping for this update so the target snaps immediately
+  const wasDamping = controls.enableDamping;
+  controls.enableDamping = false;
+  controls.update();
+  controls.enableDamping = wasDamping;
+}
+
+// ── Keyboard ─────────────────────────────────────────────────────────────────────
+window.addEventListener('keydown', e => {
+  if (assemblyModule) {
+    if (e.key === 'ArrowRight' || e.key === ' ') {
+      e.preventDefault();
+      if (currentStep === -1) goToStep(0); else goToStep(currentStep + 1);
+    } else if (e.key === 'ArrowLeft') {
+      goToStep(currentStep - 1);         // handles -1 → overview
+    } else if (e.key === 'Escape') {
+      exitAssembly(true);
+    }
+    return;
+  }
+  if (e.key === 'Escape') { if (selectedModule) deselect(); else if (isolatedModule) showAllModules(true); }
+  if (e.key === 'f' || e.key === 'F') {
+    const t = isolatedModule ? (moduleObjects[isolatedModule] || []) : selectables;
+    if (t.length) fitCameraToObjects(t);
+  }
+});
+
+// ── Helpers ──────────────────────────────────────────────────────────────────────
+function toCSS(c) {
+  if (!c) return '#4f9eff';
+  if (typeof c === 'string') return c;
+  return `#${Math.round(c.r??0).toString(16).padStart(2,'0')}${Math.round(c.g??0).toString(16).padStart(2,'0')}${Math.round(c.b??0).toString(16).padStart(2,'0')}`;
+}
+function fmt(n) { return Number.isFinite(n) ? n.toFixed(3) : '—'; }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function showLoading(msg) { document.getElementById('loading-text').textContent = msg; document.getElementById('loading').classList.add('show'); }
+function hideLoading() { document.getElementById('loading').classList.remove('show'); }
+
+// ── Print / PDF ───────────────────────────────────────────────────────────────────
+
+document.getElementById('print-manual-btn').addEventListener('click', openPrintModal);
+document.getElementById('pm-close').addEventListener('click', () => document.getElementById('print-modal').classList.remove('show'));
+document.getElementById('print-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('print-modal'))
+    document.getElementById('print-modal').classList.remove('show');
+});
+document.getElementById('pm-check-all').addEventListener('change', e => {
+  document.querySelectorAll('.pm-mod-check').forEach(c => c.checked = e.target.checked);
+});
+document.getElementById('pm-module-list').addEventListener('change', () => syncSelectAll());
+
+document.getElementById('pm-generate').addEventListener('click', async () => {
+  const selected = [...document.querySelectorAll('.pm-mod-check:checked')].map(c => c.value);
+  if (!selected.length) { setProgress('Select at least one module.'); return; }
+  const btn = document.getElementById('pm-generate');
+  btn.disabled = true;
+  try { await generateAssemblyPDF(selected); }
+  finally { btn.disabled = false; btn.textContent = '⎙ Generate PDF'; setProgress(''); }
+});
+
+function setProgress(msg) { document.getElementById('pm-progress').textContent = msg; }
+
+function syncSelectAll() {
+  const all   = [...document.querySelectorAll('.pm-mod-check')];
+  const chk   = document.getElementById('pm-check-all');
+  const every = all.every(c => c.checked);
+  const none  = all.every(c => !c.checked);
+  chk.checked = every;
+  chk.indeterminate = !every && !none;
+}
+
+function openPrintModal() {
+  const list = document.getElementById('pm-module-list');
+  list.innerHTML = '';
+  Object.entries(moduleColorMap).forEach(([mod, col]) => {
+    const hex   = '#' + col.getHexString();
+    const count = moduleObjects[mod]?.length ?? 0;
+    const row   = document.createElement('label');
+    row.className = 'pm-mod-row';
+    row.innerHTML =
+      `<input type="checkbox" class="pm-mod-check" value="${esc(mod)}" checked>` +
+      `<span class="pm-swatch" style="background:${hex}"></span>` +
+      `<span class="pm-mod-name">${esc(mod)}</span>` +
+      `<span class="pm-mod-count">${count} el.</span>`;
+    list.appendChild(row);
+  });
+  syncSelectAll();
+  setProgress('');
+  document.getElementById('pm-generate').textContent = '⎙ Generate PDF';
+  document.getElementById('print-modal').classList.add('show');
+}
+
+// ── Camera helper for print (synchronous snap, optional view direction) ──────────
+function setCameraForPrint(box, viewDir) {
+  if (box.isEmpty()) return;
+  const center = box.getCenter(new THREE.Vector3());
+  const size   = box.getSize(new THREE.Vector3());
+  const radius = Math.max(size.x, size.y, size.z) * 0.75;
+  const dist   = radius / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2));
+  const dir    = viewDir ? viewDir.clone().normalize() : new THREE.Vector3(1, 0.72, 1.25).normalize();
+  controls.target.copy(center);
+  camera.position.copy(center).addScaledVector(dir, dist * 1.45);
+  camera.near = dist * 0.001;
+  camera.far  = dist * 200;
+  camera.updateProjectionMatrix();
+  const wasDamp = controls.enableDamping;
+  controls.enableDamping = false;
+  controls.update();
+  controls.enableDamping = wasDamp;
+}
+
+// ── Option A: find the view direction that spreads elements most in 2D ────────────
+function computeSpreadScore(centers, viewDir) {
+  const vd = viewDir.clone().normalize();
+  const worldUp = Math.abs(vd.y) > 0.98 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+  const right = new THREE.Vector3().crossVectors(vd, worldUp).normalize();
+  const up    = new THREE.Vector3().crossVectors(right, vd).normalize();
+  const pts   = centers.map(c => ({ x: c.dot(right), y: c.dot(up) }));
+  let total = 0, count = 0;
+  for (let i = 0; i < pts.length; i++) {
+    for (let j = i + 1; j < pts.length; j++) {
+      const dx = pts[i].x - pts[j].x, dy = pts[i].y - pts[j].y;
+      total += Math.sqrt(dx * dx + dy * dy);
+      count++;
+    }
+  }
+  return count > 0 ? total / count : 0;
+}
+
+// ── Option A+: visibility score — penalise angles where ghost geometry occludes elements ──
+function computeVisibilityScore(catCenters, viewDir, ghostMeshes) {
+  if (!ghostMeshes.length || !catCenters.length) return 1.0;
+
+  const vd      = viewDir.clone().normalize();
+  const worldUp = Math.abs(vd.y) > 0.98 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+  const right   = new THREE.Vector3().crossVectors(vd, worldUp).normalize();
+  const upPerp  = new THREE.Vector3().crossVectors(right, vd).normalize();
+
+  // Pre-project each ghost mesh bounding box: centre + approximate 2D footprint radius
+  const ghosts = [];
+  ghostMeshes.forEach(obj => {
+    const box = new THREE.Box3().setFromObject(obj);
+    if (box.isEmpty()) return;
+    const size = box.getSize(new THREE.Vector3());
+    const c    = box.getCenter(new THREE.Vector3());
+    // Half-extent of the box projected onto the 2D plane (conservative circle)
+    const r = (Math.abs(size.dot(right)) + Math.abs(size.dot(upPerp))) * 0.5;
+    ghosts.push({ depth: c.dot(vd), x: c.dot(right), y: c.dot(upPerp), r });
+  });
+
+  let visible = 0;
+  catCenters.forEach(center => {
+    const cx    = center.dot(right);
+    const cy    = center.dot(upPerp);
+    const cDepth = center.dot(vd);
+
+    // Blocked if any ghost is in front AND its 2D footprint covers the element centre
+    const blocked = ghosts.some(g => {
+      if (g.depth >= cDepth) return false;   // ghost is behind or at same depth → no block
+      const dx = g.x - cx, dy = g.y - cy;
+      return (dx * dx + dy * dy) < g.r * g.r;
+    });
+
+    if (!blocked) visible++;
+  });
+
+  return visible / catCenters.length;
+}
+
+function bestCameraAngle(catObjs) {
+  if (catObjs.length < 2) return null;
+
+  const catSet  = new Set(catObjs);
+  const centers = catObjs.map(o => {
+    const b = new THREE.Box3().setFromObject(o);
+    return b.isEmpty() ? null : b.getCenter(new THREE.Vector3());
+  }).filter(Boolean);
+  if (centers.length < 2) return null;
+
+  // Only check solid meshes as occluders (lines/points are transparent in practice)
+  const ghostMeshes = selectables.filter(o => o.isMesh && !catSet.has(o));
+
+  let bestDir = null, bestScore = -1;
+  [20, 35, 50].forEach(elDeg => {
+    [0, 45, 90, 135, 180, 225, 270, 315].forEach(azDeg => {
+      const el  = elDeg * Math.PI / 180;
+      const az  = azDeg * Math.PI / 180;
+      const dir = new THREE.Vector3(
+        Math.cos(el) * Math.cos(az),
+        Math.sin(el),
+        Math.cos(el) * Math.sin(az)
+      );
+      const spread     = computeSpreadScore(centers, dir);
+      const visibility = computeVisibilityScore(centers, dir, ghostMeshes);
+      // Combined: visibility weighted 70%, spread 30% of the multiplier.
+      // A fully occluded angle scores at most 30% of a clear one.
+      const score = spread * (0.3 + 0.7 * visibility);
+      if (score > bestScore) { bestScore = score; bestDir = dir.clone(); }
+    });
+  });
+  return bestDir;
+}
+
+// ── Option D: push overlapping balloons apart (force-directed, in-place) ─────────
+function spreadBalloons(pts, R, iX, iY, iW, iH) {
+  const minDist = R * 2 + 1.8;   // diameter + 1.8 mm gap
+  for (let iter = 0; iter < 120; iter++) {
+    let anyMoved = false;
+    for (let i = 0; i < pts.length; i++) {
+      for (let j = i + 1; j < pts.length; j++) {
+        const dx = pts[j].x - pts[i].x;
+        const dy = pts[j].y - pts[i].y;
+        const d  = Math.sqrt(dx * dx + dy * dy);
+        if (d < minDist) {
+          anyMoved = true;
+          if (d < 0.001) {
+            // Identical — push apart diagonally
+            pts[i].x -= minDist * 0.5; pts[j].x += minDist * 0.5;
+          } else {
+            const push = (minDist - d) * 0.52;   // slightly more than half so it converges
+            const nx = dx / d, ny = dy / d;
+            pts[i].x -= nx * push; pts[i].y -= ny * push;
+            pts[j].x += nx * push; pts[j].y += ny * push;
+          }
+        }
+      }
+    }
+    // Clamp every balloon inside the image area
+    pts.forEach(p => {
+      p.x = Math.max(iX + R + 1, Math.min(iX + iW - R - 1, p.x));
+      p.y = Math.max(iY + R + 1, Math.min(iY + iH - R - 1, p.y));
+    });
+    if (!anyMoved) break;
+  }
+}
+
+// ── Main PDF generator ────────────────────────────────────────────────────────────
+async function generateAssemblyPDF(selectedMods) {
+  if (!window.jspdf) { alert('jsPDF not loaded — check your internet connection.'); return; }
+  const { jsPDF } = window.jspdf;
+
+  // A4 landscape (mm)
+  const W = 297, H = 210;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+  // ── Save scene state ──────────────────────────────────────────────────────────
+  const savedBg     = scene.background.clone();
+  const savedPos    = camera.position.clone();
+  const savedTarget = controls.target.clone();
+  const savedNear   = camera.near;
+  const savedFar    = camera.far;
+
+  // Save all object materials + visibility
+  const saved = [];
+  selectables.forEach(obj => {
+    const entry = { obj, mat: obj.material, vis: obj.visible, edges: [] };
+    obj.children.forEach(c => {
+      if (c.userData._isEdge) entry.edges.push({ c, mat: c.material, vis: c.visible });
+    });
+    saved.push(entry);
+  });
+
+  // Print ghost materials — subtle on white
+  const pgMesh = new THREE.MeshStandardMaterial({ color: 0xc8c8c8, transparent: true, opacity: 0.13, depthWrite: false });
+  const pgLine = new THREE.LineBasicMaterial({ color: 0xb0b0b0, transparent: true, opacity: 0.28 });
+  const pgEdge = new THREE.LineBasicMaterial({ color: 0x989898, transparent: true, opacity: 0.40 });
+
+  scene.background = new THREE.Color(0xffffff);
+  labelRenderer.domElement.style.display = 'none';
+  cameraAnim = null; controls.enabled = true;
+
+  const projectName = document.getElementById('tb-filename').textContent;
+  let firstPage = true;
+  let pageTotal = 0; // for the button label
+
+  // Pre-count total pages
+  selectedMods.forEach(mod => {
+    const objs = moduleObjects[mod] || [];
+    if (!objs.length) return;
+    const cats = [...new Set(objs.map(o => getCategory(o.name || o.userData?.attributes?.name || '')))];
+    pageTotal += 1 + cats.length;
+  });
+
+  let pagesDone = 0;
+
+  function applyPrintMats(highlightSet) {
+    selectables.forEach(obj => {
+      const isHighlight = highlightSet.has(obj);
+      if (isHighlight) {
+        // Restore its real material from saved state
+        const s = saved.find(e => e.obj === obj);
+        if (s) obj.material = s.mat;
+        obj.visible = true;
+        obj.children.forEach(c => {
+          if (c.userData._isEdge) { c.material = edgeMaterial; c.visible = true; }
+        });
+      } else {
+        obj.material = (obj.isLine || obj.isPoints) ? pgLine : pgMesh;
+        obj.visible  = true;
+        obj.children.forEach(c => {
+          if (c.userData._isEdge) { c.material = pgEdge; c.visible = true; }
+        });
+      }
+    });
+  }
+
+  function snap() {
+    renderer.render(scene, camera);
+    return renderer.domElement.toDataURL('image/png');
+  }
+
+  // ── Page layout helper ───────────────────────────────────────────────────────
+  // Category pages: 3D image on the left, numbered parts list on the right.
+  // Context (overview) pages: full-width image, no sidebar.
+  function addPDFPage(imgData, heading, catLine, pageNum, pageTot, labelObjs, modColor) {
+    if (!firstPage) doc.addPage(); firstPage = false;
+
+    const mL = 12, mR = 10, mTop = 21, mBot = 11;
+    const hasList = !!(labelObjs && labelObjs.length);
+
+    // Sidebar width — enough for a tidy numbered list
+    const sideW = hasList ? 82 : 0;
+    const sepX  = W - mR - sideW;          // x of separator line
+
+    // 3D image bounds
+    const iX = mL;
+    const iY = mTop;
+    const iW = hasList ? (sepX - mL - 4) : (W - mL - mR);
+    const iH = H - mTop - mBot;
+
+    // ── White background ─────────────────────────────────────────────────────
+    doc.setFillColor(255, 255, 255);
+    doc.rect(0, 0, W, H, 'F');
+
+    // ── Header ───────────────────────────────────────────────────────────────
+    if (!catLine) {
+      // Context page — large centred module code
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(22);
+      doc.setTextColor(20, 20, 20);
+      doc.text(heading, W / 2, 14, { align: 'center' });
+    } else {
+      // Category page — module code small above, category name large
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(150, 150, 150);
+      doc.text(heading, iX + iW / 2, 10, { align: 'center' });
+      doc.setFontSize(15);
+      doc.setTextColor(20, 20, 20);
+      doc.text(catLine, iX + iW / 2, 18, { align: 'center' });
+    }
+
+    // ── 3D render ─────────────────────────────────────────────────────────────
+    doc.addImage(imgData, 'PNG', iX, iY, iW, iH, undefined, 'FAST');
+
+    // ── Numbered balloons on the 3D image + sidebar list ──────────────────────
+    if (hasList) {
+      // Sort by sequence number so balloon ① is the first piece to place
+      const sorted = [...labelObjs].sort((a, b) => {
+        const na = a.name || a.userData?.attributes?.name || '';
+        const nb = b.name || b.userData?.attributes?.name || '';
+        return getSequence(na) - getSequence(nb);
+      });
+
+      // Accent colour from the module — use as balloon fill
+      const col = modColor || new THREE.Color(0xC4925A);
+      const cr = Math.round(col.r * 255);
+      const cg = Math.round(col.g * 255);
+      const cb = Math.round(col.b * 255);
+
+      // ── Balloons on image (Option A angle already applied; Option D spreads them) ──
+      const R = 2.6; // balloon radius in mm
+
+      // 1. Project all element centres to 2D PDF coords
+      const balloons = sorted.map((obj, idx) => {
+        const b = new THREE.Box3().setFromObject(obj);
+        if (b.isEmpty()) return null;
+        const ndc = b.getCenter(new THREE.Vector3()).project(camera);
+        if (ndc.z > 1) return null;
+        const px = ndc.x * 0.5 + 0.5;
+        const py = -ndc.y * 0.5 + 0.5;
+        if (px < 0.01 || px > 0.99 || py < 0.01 || py > 0.99) return null;
+        const bx = iX + px * iW, by = iY + py * iH;
+        return { ox: bx, oy: by, x: bx, y: by, idx };  // ox/oy = original (for leader line)
+      });
+
+      // 2. Run force-spread on valid balloons (Option D)
+      const valid = balloons.filter(Boolean);
+      spreadBalloons(valid, R, iX, iY, iW, iH);
+
+      // 3. Draw: leader line (if moved) → anchor dot → balloon → number
+      doc.setFont('helvetica', 'bold');
+      valid.forEach(pt => {
+        const moved = Math.hypot(pt.x - pt.ox, pt.y - pt.oy) > 1.2;
+
+        if (moved) {
+          // Thin coloured leader line from balloon back to actual element position
+          doc.setDrawColor(cr, cg, cb);
+          doc.setLineWidth(0.28);
+          doc.line(pt.x, pt.y, pt.ox, pt.oy);
+          // Small solid dot at the real element centre
+          doc.setFillColor(cr, cg, cb);
+          doc.circle(pt.ox, pt.oy, 0.8, 'F');
+        }
+
+        // Filled balloon circle
+        doc.setFillColor(cr, cg, cb);
+        doc.circle(pt.x, pt.y, R, 'F');
+        // White ring so it reads on any background
+        doc.setDrawColor(255, 255, 255);
+        doc.setLineWidth(0.35);
+        doc.circle(pt.x, pt.y, R, 'S');
+        // Number
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(5.2);
+        doc.text(String(pt.idx + 1), pt.x, pt.y, { align: 'center', baseline: 'middle' });
+      });
+
+      // ── Sidebar divider ───────────────────────────────────────────────────
+      doc.setDrawColor(220, 220, 220);
+      doc.setLineWidth(0.25);
+      doc.line(sepX, mTop, sepX, H - mBot);
+
+      // ── Sidebar header ────────────────────────────────────────────────────
+      const listX0 = sepX + 4;   // left edge of sidebar text
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6);
+      doc.setTextColor(140, 140, 140);
+      doc.text('PARTS LIST', listX0, mTop + 4);
+
+      // Thin rule under header
+      doc.setDrawColor(220, 220, 220);
+      doc.setLineWidth(0.2);
+      doc.line(listX0, mTop + 5.5, W - mR, mTop + 5.5);
+
+      // ── Rows ──────────────────────────────────────────────────────────────
+      // Fit into available height; if too many items use two columns
+      const listAvailH  = H - mTop - mBot - 8;   // px reserved for header rule
+      const rowH        = 5.0;                     // mm per row
+      const maxPerCol   = Math.max(1, Math.floor(listAvailH / rowH));
+      const useTwoCols  = sorted.length > maxPerCol;
+      const colW        = (sideW - 6) / (useTwoCols ? 2 : 1);
+
+      doc.setFont('helvetica', 'normal');
+      sorted.forEach((obj, idx) => {
+        const name    = obj.name || obj.userData?.attributes?.name || '';
+        const colIdx  = useTwoCols ? Math.floor(idx / maxPerCol) : 0;
+        const rowIdx  = useTwoCols ? (idx % maxPerCol) : idx;
+        const rx      = listX0 + colIdx * colW;
+        const ry      = mTop + 8 + rowIdx * rowH;
+        if (ry + rowH > H - mBot) return;   // overflow guard
+
+        // Balloon circle (matches image)
+        doc.setFillColor(cr, cg, cb);
+        doc.circle(rx + 2.4, ry, 2.4, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(4.8);
+        doc.text(String(idx + 1), rx + 2.4, ry, { align: 'center', baseline: 'middle' });
+
+        // Element name — truncate if needed to fit column
+        doc.setTextColor(25, 25, 25);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(5.8);
+        const maxCh = useTwoCols ? 15 : 22;
+        const label = name.length > maxCh ? name.slice(0, maxCh - 1) + '…' : name;
+        doc.text(label, rx + 5.5, ry, { baseline: 'middle' });
+      });
+    }
+
+    // ── Footer ────────────────────────────────────────────────────────────────
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(150, 150, 150);
+    doc.text(heading, mL, H - 4);
+    doc.text(`${pageNum} / ${pageTot}`, W / 2, H - 4, { align: 'center' });
+    doc.text(projectName, W - mR, H - 4, { align: 'right' });
+
+    pagesDone++;
+    setProgress(`Rendering page ${pagesDone} of ${pageTotal}…`);
+    document.getElementById('pm-generate').textContent =
+      `Generating… ${Math.round((pagesDone / pageTotal) * 100)}%`;
+  }
+
+  try {
+    for (const mod of selectedMods) {
+      const modObjs  = moduleObjects[mod] || [];
+      const modColor = moduleColorMap[mod] || null;
+      if (!modObjs.length) continue;
+
+      const cats = [...new Set(
+        modObjs.map(o => getCategory(o.name || o.userData?.attributes?.name || ''))
+      )].sort();
+      const pageTot = 1 + cats.length;
+
+      // ── Page 1: Context — frame the whole building but zoom toward the module ──
+      applyPrintMats(new Set(modObjs));
+      if (docGroup) {
+        // Expand the module box by 2.5× so the module is prominent but surroundings visible
+        const fullBox = new THREE.Box3().setFromObject(docGroup);
+        const modBox0 = new THREE.Box3();
+        modObjs.forEach(o => modBox0.expandByObject(o));
+        const blended = new THREE.Box3(
+          modBox0.min.clone().lerp(fullBox.min, 0.35),
+          modBox0.max.clone().lerp(fullBox.max, 0.35)
+        );
+        setCameraForPrint(blended);
+      }
+      addPDFPage(snap(), mod, '', 1, pageTot, null, modColor);
+
+      // ── Pages 2+: Per category ───────────────────────────────────────────────
+      for (let ci = 0; ci < cats.length; ci++) {
+        const cat     = cats[ci];
+        const catObjs = modObjs.filter(o =>
+          getCategory(o.name || o.userData?.attributes?.name || '') === cat
+        );
+
+        applyPrintMats(new Set(catObjs));
+
+        // Option A+: find the view direction that maximises spread AND visibility
+        const bestDir = bestCameraAngle(catObjs);
+
+        // For small categories frame the elements themselves (with padding);
+        // for larger ones frame the whole module so context is clear.
+        const catBox = new THREE.Box3();
+        catObjs.forEach(o => catBox.expandByObject(o));
+        const modBox = new THREE.Box3();
+        modObjs.forEach(o => modBox.expandByObject(o));
+
+        let frameBox;
+        if (catObjs.length <= 4) {
+          // Expand element box by 60% so there's breathing room around small pieces
+          const catSize   = catBox.getSize(new THREE.Vector3());
+          const padFactor = 0.6;
+          const pad       = new THREE.Vector3(catSize.x, catSize.y, catSize.z).multiplyScalar(padFactor);
+          frameBox = new THREE.Box3(catBox.min.clone().sub(pad), catBox.max.clone().add(pad));
+          // But don't expand beyond the module box
+          frameBox.intersect(modBox.clone().expandByScalar(modBox.getSize(new THREE.Vector3()).length() * 0.2));
+        } else {
+          frameBox = modBox;
+        }
+
+        setCameraForPrint(frameBox, bestDir);
+
+        addPDFPage(snap(), mod, cat, ci + 2, pageTot, catObjs, modColor);
+      }
+    }
+
+    const safeProject = projectName.replace(/\.[^.]+$/, '').replace(/[^\w\s-]/g, '');
+    doc.save(`${safeProject}_Assembly-Manual.pdf`);
+
+  } finally {
+    // ── Restore scene ──────────────────────────────────────────────────────────
+    scene.background.copy(savedBg);
+    camera.position.copy(savedPos);
+    controls.target.copy(savedTarget);
+    camera.near = savedNear; camera.far = savedFar;
+    camera.updateProjectionMatrix();
+    const wasDamp = controls.enableDamping;
+    controls.enableDamping = false;
+    controls.update();
+    controls.enableDamping = wasDamp;
+
+    saved.forEach(({ obj, mat, vis, edges }) => {
+      obj.material = mat; obj.visible = vis;
+      edges.forEach(({ c, mat: em, vis: ev }) => { c.material = em; c.visible = ev; });
+    });
+
+    labelRenderer.domElement.style.display = '';
+    pgMesh.dispose(); pgLine.dispose(); pgEdge.dispose();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── Device detection & mobile optimisations ───────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+const _ua        = navigator.userAgent;
+const IS_IPAD    = /iPad/.test(_ua) || (navigator.maxTouchPoints > 2 && /Macintosh/.test(_ua));
+const IS_IPHONE  = /iPhone|iPod/.test(_ua);
+const IS_TOUCH   = navigator.maxTouchPoints > 0;
+const IS_PHONE   = IS_IPHONE || (!IS_IPAD && IS_TOUCH && Math.min(screen.width, screen.height) < 600);
+const IS_TABLET  = IS_IPAD  || (!IS_PHONE && IS_TOUCH);
+
+// Stamp a class on <html> so CSS can target per-device
+document.documentElement.classList.add(
+  IS_PHONE ? 'dev-phone' : IS_TABLET ? 'dev-tablet' : 'dev-desktop'
+);
+
+// ── Three.js touch tuning ─────────────────────────────────────────────────────
+if (IS_TOUCH) {
+  controls.touches     = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+  controls.dampingFactor = 0.12;
+  controls.rotateSpeed   = 0.7;
+  controls.panSpeed      = 0.8;
+  controls.zoomSpeed     = 1.2;
+}
+
+// ── Kits toggle (phone) — bottom-sheet module panel ──────────────────────────
+document.getElementById('kits-toggle-btn').addEventListener('click', () => {
+  document.getElementById('module-panel').classList.toggle('show');
+});
+
+// Tap canvas on phone → close open bottom sheets
+canvas.addEventListener('touchstart', () => {
+  if (!IS_PHONE) return;
+  if (!assemblyModule)  document.getElementById('module-panel').classList.remove('show');
+  document.getElementById('info-panel').classList.remove('open');
+}, { passive: true });
+
+// ── Steps list toggle (phone) ─────────────────────────────────────────────────
+document.getElementById('asm-list-btn').addEventListener('click', () => {
+  document.getElementById('asm-list-panel').classList.toggle('phone-open');
+});
+
+// Close steps panel when a step item is tapped on phone
+document.getElementById('alp-scroll').addEventListener('click', () => {
+  if (IS_PHONE) document.getElementById('asm-list-panel').classList.remove('phone-open');
+});
+
+// ── Expose kits-toggle-btn when a model is loaded ─────────────────────────────
+// Patch hideLoading (called at the end of _applyGroup) so the button appears
+const _origHideLoading = hideLoading;
+hideLoading = function() {
+  _origHideLoading();
+  if (IS_PHONE && docGroup) {
+    document.getElementById('kits-toggle-btn').style.display = '';
+  }
+};
+
+// Also hide kits-toggle-btn when model is cleared
+const _origClearModel = clearModel;
+clearModel = function() {
+  _origClearModel();
+  document.getElementById('kits-toggle-btn').style.display = 'none';
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── Customer-facing features ─────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── Category name mapping ─────────────────────────────────────────────────────
+const CATEGORY_NAMES = {
+  BR: 'Bundrem',
+  TR: 'Toprem',
+  LP: 'Lodpost',
+  LH: 'Løsholt',
+  OL: 'Overlægger',
+  FS: 'Forstærkning',
+  GU: 'Gulv',
+  SP: 'Spær',
+};
+function catLabel(code) {
+  return CATEGORY_NAMES[code] ? `${CATEGORY_NAMES[code]} (${code})` : code;
+}
+
+// ── Dimensions display ────────────────────────────────────────────────────────
+function updateDims(obj) {
+  const el = document.getElementById('asm-dims');
+  if (!el) return;
+  if (!obj) { el.textContent = ''; return; }
+  const box = new THREE.Box3().setFromObject(obj);
+  if (box.isEmpty()) { el.textContent = ''; return; }
+  const s = box.getSize(new THREE.Vector3());
+  const r = v => Math.round(v);
+  el.textContent = `W ${r(s.x)} × H ${r(s.y)} × L ${r(s.z)} mm`;
+}
+
+// ── Guide modal ───────────────────────────────────────────────────────────────
+const GUIDE_TOTAL = 7;
+let guideSlide = 0;
+
+function openGuide(start = 0) {
+  guideSlide = Math.max(0, Math.min(start, GUIDE_TOTAL - 1));
+  renderGuideSlide();
+  document.getElementById('guide-modal').classList.add('show');
+}
+
+function renderGuideSlide() {
+  document.querySelectorAll('.gd-slide').forEach((s, i) => s.classList.toggle('active', i === guideSlide));
+  document.querySelectorAll('.gd-dot').forEach((d, i) => d.classList.toggle('active', i === guideSlide));
+  document.getElementById('gd-prev').disabled = (guideSlide === 0);
+  const isLast = guideSlide === GUIDE_TOTAL - 1;
+  const nextBtn = document.getElementById('gd-next');
+  nextBtn.textContent = isLast ? 'Done ✓' : 'Next →';
+}
+
+document.getElementById('guide-btn').addEventListener('click', () => openGuide(0));
+document.getElementById('guide-btn-landing').addEventListener('click', () => openGuide(0));
+document.getElementById('gd-close').addEventListener('click', () =>
+  document.getElementById('guide-modal').classList.remove('show'));
+document.getElementById('guide-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('guide-modal'))
+    document.getElementById('guide-modal').classList.remove('show');
+});
+document.getElementById('gd-prev').addEventListener('click', () => {
+  if (guideSlide > 0) { guideSlide--; renderGuideSlide(); }
+});
+document.getElementById('gd-next').addEventListener('click', () => {
+  if (guideSlide < GUIDE_TOTAL - 1) { guideSlide++; renderGuideSlide(); }
+  else document.getElementById('guide-modal').classList.remove('show');
+});
+
+// ── Find element modal ────────────────────────────────────────────────────────
+let findKit = null, findCat = null;
+
+function openFind() {
+  findKit = null; findCat = null;
+  renderFindKits();
+  renderFindCats();
+  renderFindElements();
+  document.getElementById('find-modal').classList.add('show');
+}
+
+function renderFindKits() {
+  const grid = document.getElementById('fp-kit-grid');
+  grid.innerHTML = '';
+  Object.keys(moduleObjects).sort().forEach(mod => {
+    const col  = moduleColorMap[mod];
+    const hex  = col ? '#' + col.getHexString() : 'var(--accent)';
+    const btn  = document.createElement('button');
+    btn.className = 'fp-kit-btn' + (mod === findKit ? ' sel' : '');
+    btn.innerHTML =
+      `<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${hex};margin-right:.4rem;vertical-align:middle;flex-shrink:0"></span>${esc(mod)}`;
+    btn.addEventListener('click', () => {
+      findKit = mod; findCat = null;
+      renderFindKits(); renderFindCats(); renderFindElements();
+    });
+    grid.appendChild(btn);
+  });
+}
+
+function renderFindCats() {
+  const section = document.getElementById('fp-cat-section');
+  const grid    = document.getElementById('fp-cat-grid');
+  grid.innerHTML = '';
+  if (!findKit) { section.style.display = 'none'; return; }
+  section.style.display = '';
+  const objs = moduleObjects[findKit] || [];
+  const cats = [...new Set(
+    objs.map(o => getCategory(o.name || o.userData?.attributes?.name || ''))
+  )].sort();
+  cats.forEach(cat => {
+    const btn = document.createElement('button');
+    btn.className = 'fp-cat-btn' + (cat === findCat ? ' sel' : '');
+    const count = objs.filter(o =>
+      getCategory(o.name || o.userData?.attributes?.name || '') === cat
+    ).length;
+    btn.innerHTML =
+      `<span class="fp-cat-code">${esc(cat)}</span>` +
+      `<span class="fp-cat-name">${esc(CATEGORY_NAMES[cat] || cat)}</span>` +
+      `<span style="font-size:.58rem;color:var(--muted);margin-top:.1rem">${count} pcs</span>`;
+    btn.addEventListener('click', () => {
+      findCat = cat;
+      renderFindCats(); renderFindElements();
+    });
+    grid.appendChild(btn);
+  });
+}
+
+function renderFindElements() {
+  const section = document.getElementById('fp-el-section');
+  const list    = document.getElementById('fp-el-list');
+  list.innerHTML = '';
+  if (!findKit || !findCat) { section.style.display = 'none'; return; }
+  section.style.display = '';
+
+  const objs = (moduleObjects[findKit] || [])
+    .filter(o => getCategory(o.name || o.userData?.attributes?.name || '') === findCat)
+    .sort((a, b) => {
+      const na = a.name || a.userData?.attributes?.name || '';
+      const nb = b.name || b.userData?.attributes?.name || '';
+      return getSequence(na) - getSequence(nb);
+    });
+
+  if (!objs.length) {
+    list.innerHTML = `<div style="font-size:.78rem;color:var(--muted);padding:.5rem">No elements found.</div>`;
+    return;
+  }
+
+  objs.forEach((obj, i) => {
+    const name = obj.name || obj.userData?.attributes?.name || `Element ${i + 1}`;
+    // Compute dims for display
+    const box  = new THREE.Box3().setFromObject(obj);
+    const dims = box.isEmpty() ? '' : (() => {
+      const s = box.getSize(new THREE.Vector3());
+      return `${Math.round(s.x)}×${Math.round(s.y)}×${Math.round(s.z)} mm`;
+    })();
+    const row  = document.createElement('div');
+    row.className = 'fp-el-row';
+    row.innerHTML =
+      `<span class="fp-el-num">${String(i + 1).padStart(2, '0')}</span>` +
+      `<span class="fp-el-name">${esc(name)}</span>` +
+      `<span class="fp-el-step" style="font-family:'Courier New',monospace">${esc(dims)}</span>` +
+      `<span class="fp-el-go">→ Go</span>`;
+    row.addEventListener('click', () => {
+      flyToElement(obj);
+      document.getElementById('find-modal').classList.remove('show');
+    });
+    list.appendChild(row);
+  });
+}
+
+function flyToElement(obj) {
+  const box = new THREE.Box3().setFromObject(obj);
+  if (box.isEmpty()) return;
+  const center = box.getCenter(new THREE.Vector3());
+  const size   = box.getSize(new THREE.Vector3());
+  const radius = Math.max(size.x, size.y, size.z) * 1.5;
+  const dist   = radius / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2));
+  const toPos  = center.clone().addScaledVector(
+    new THREE.Vector3(1, 0.7, 1.2).normalize(), dist * 2.2
+  );
+  flyCamera(toPos, center, 1.0, () => {});
+}
+
+document.getElementById('find-btn').addEventListener('click', openFind);
+document.getElementById('fp-close').addEventListener('click', () =>
+  document.getElementById('find-modal').classList.remove('show'));
+document.getElementById('find-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('find-modal'))
+    document.getElementById('find-modal').classList.remove('show');
+});
+
+// ── Report / Flag modal ───────────────────────────────────────────────────────
+let reportPhotoDataUrl = null;
+
+function openReport() {
+  const step = currentStep;
+  const obj  = (assemblyModule && step >= 0 && assemblySteps[step]) ? assemblySteps[step] : null;
+  const name = obj ? (obj.name || obj.userData?.attributes?.name || '') : '';
+  document.getElementById('rp-elem-name').textContent = name || '(overview — no element selected)';
+  document.getElementById('rp-note').value     = '';
+  document.getElementById('rp-status').textContent   = '';
+  document.getElementById('rp-status').style.color   = 'var(--muted)';
+  reportPhotoDataUrl = null;
+  const preview = document.getElementById('rp-photo-preview');
+  preview.src = ''; preview.style.display = 'none';
+  document.getElementById('report-modal').classList.add('show');
+}
+
+document.getElementById('asm-flag-btn').addEventListener('click', openReport);
+document.getElementById('rp-close').addEventListener('click', () =>
+  document.getElementById('report-modal').classList.remove('show'));
+document.getElementById('rp-cancel').addEventListener('click', () =>
+  document.getElementById('report-modal').classList.remove('show'));
+document.getElementById('report-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('report-modal'))
+    document.getElementById('report-modal').classList.remove('show');
+});
+
+// 📷 Screenshot button — capture current 3D view
+document.getElementById('rp-photo-btn').addEventListener('click', () => {
+  renderer.render(scene, camera);
+  reportPhotoDataUrl = renderer.domElement.toDataURL('image/jpeg', 0.72);
+  const preview = document.getElementById('rp-photo-preview');
+  preview.src = reportPhotoDataUrl;
+  preview.style.display = '';
+});
+
+// 📁 Upload from device
+document.getElementById('rp-upload-btn').addEventListener('click', () =>
+  document.getElementById('rp-file-input').click());
+document.getElementById('rp-file-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    reportPhotoDataUrl = ev.target.result;
+    const preview = document.getElementById('rp-photo-preview');
+    preview.src = reportPhotoDataUrl;
+    preview.style.display = '';
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+});
+
+// Send report
+document.getElementById('rp-submit').addEventListener('click', async () => {
+  const note     = document.getElementById('rp-note').value.trim();
+  const elemName = document.getElementById('rp-elem-name').textContent;
+  const statusEl = document.getElementById('rp-status');
+  if (!note) {
+    statusEl.textContent = 'Please add a note describing the issue.';
+    statusEl.style.color = '#f87171';
+    return;
+  }
+  statusEl.style.color   = 'var(--muted)';
+  statusEl.textContent   = 'Sending…';
+
+  const payload = {
+    element:     elemName,
+    module:      assemblyModule || '',
+    step:        currentStep >= 0 ? currentStep + 1 : null,
+    note,
+    photo:       reportPhotoDataUrl || null,
+    projectName: document.getElementById('tb-filename').textContent,
+    sentAt:      new Date().toISOString(),
+  };
+
+  try {
+    const res = await fetch(`${API_BASE}/api/viewer/reports`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+    });
+    if (res.ok) {
+      statusEl.style.color = '#4ade80';
+      statusEl.textContent = "✓ Report sent! We’ll follow up with you shortly.";
+      setTimeout(() => document.getElementById('report-modal').classList.remove('show'), 2400);
+    } else {
+      statusEl.style.color = '#f87171';
+      statusEl.textContent = 'Server error. Please try again.';
+    }
+  } catch {
+    statusEl.style.color = '#f87171';
+    statusEl.textContent = 'Network error. Check your connection.';
+  }
+});
+</script>
+</body>
+</html>

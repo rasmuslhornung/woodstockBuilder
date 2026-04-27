@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3DM Projects — Admin</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0d0f14;
+      --surface:  #161820;
+      --surface2: #1e2029;
+      --border:   #2a2d3a;
+      --accent:   #4f9eff;
+      --danger:   #ef4444;
+      --success:  #22c55e;
+      --text:     #e4e4e7;
+      --muted:    #71717a;
+    }
+
+    html, body {
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 14px;
+    }
+
+    /* ── Password gate ── */
+    #gate {
+      position: fixed; inset: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--bg);
+    }
+    #gate.hidden { display: none; }
+    .gate-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2.5rem 2rem;
+      width: 100%; max-width: 360px;
+      display: flex; flex-direction: column; gap: 1rem;
+    }
+    .gate-box h1 { font-size: 1.2rem; font-weight: 700; }
+    .gate-box p  { color: var(--muted); font-size: .85rem; }
+    #gate-error  { color: var(--danger); font-size: .82rem; min-height: 1rem; }
+
+    /* ── Layout ── */
+    #app { display: none; flex-direction: column; min-height: 100vh; }
+    #app.show { display: flex; }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      height: 52px;
+      display: flex; align-items: center; gap: 1rem;
+      position: sticky; top: 0; z-index: 10;
+    }
+    header h1 { font-size: .95rem; font-weight: 700; flex: 1; }
+    header .badge {
+      font-size: .68rem; background: rgba(79,158,255,.15);
+      color: var(--accent); border: 1px solid rgba(79,158,255,.3);
+      border-radius: 20px; padding: 2px 10px;
+    }
+
+    main { padding: 2rem; max-width: 1100px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: 2rem; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: .75rem;
+    }
+    .card-header h2 { font-size: .88rem; font-weight: 600; flex: 1; }
+    .card-body { padding: 1.5rem; }
+
+    /* ── Upload zone ── */
+    #drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 2.5rem 1.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+      position: relative;
+    }
+    #drop-zone.drag-over { border-color: var(--accent); background: rgba(79,158,255,.05); }
+    #drop-zone input[type=file] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    #drop-zone .dz-icon { font-size: 2rem; margin-bottom: .5rem; color: var(--muted); }
+    #drop-zone p { color: var(--muted); font-size: .85rem; }
+    #drop-zone p strong { color: var(--accent); }
+    #file-chosen { font-size: .8rem; color: var(--success); margin-top: .5rem; }
+
+    .form-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+      margin-top: 1.25rem;
+    }
+    @media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } }
+
+    .field { display: flex; flex-direction: column; gap: .35rem; }
+    .field label { font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+
+    input[type=text], input[type=password] {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: .55rem .8rem;
+      font-size: .88rem;
+      width: 100%;
+      outline: none;
+      transition: border-color .15s;
+    }
+    input:focus { border-color: var(--accent); }
+    input::placeholder { color: var(--muted); }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
+      padding: .55rem 1.25rem; border-radius: 6px; font-size: .85rem; font-weight: 600;
+      cursor: pointer; border: none; transition: opacity .15s, background .15s;
+    }
+    .btn:disabled { opacity: .35; cursor: default; }
+    .btn-primary  { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { opacity: .85; }
+    .btn-ghost    { background: none; border: 1px solid var(--border); color: var(--muted); }
+    .btn-ghost:hover:not(:disabled)   { border-color: var(--text); color: var(--text); }
+    .btn-danger   { background: none; border: 1px solid transparent; color: var(--danger); padding: .3rem .6rem; font-size: .78rem; }
+    .btn-danger:hover:not(:disabled)  { background: rgba(239,68,68,.1); border-color: var(--danger); }
+    .btn-sm { padding: .3rem .75rem; font-size: .78rem; }
+
+    .upload-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-top: 1.25rem;
+    }
+    #upload-status { font-size: .82rem; }
+    #upload-status.ok  { color: var(--success); }
+    #upload-status.err { color: var(--danger); }
+
+    /* ── Project table ── */
+    .tbl-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+    thead th {
+      text-align: left; padding: .6rem 1rem;
+      font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+      color: var(--muted); border-bottom: 1px solid var(--border);
+    }
+    tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--surface2); }
+    td { padding: .7rem 1rem; vertical-align: middle; }
+
+    .project-name { font-weight: 600; }
+    .client-name  { color: var(--muted); font-size: .8rem; }
+
+    /* Code pill + copy */
+    .code-cell { display: flex; align-items: center; gap: .5rem; }
+    .code-pill {
+      font-family: 'Courier New', monospace;
+      font-size: .82rem; font-weight: 700; letter-spacing: .1em;
+      background: rgba(79,158,255,.12); color: var(--accent);
+      border: 1px solid rgba(79,158,255,.25);
+      border-radius: 5px; padding: 3px 8px;
+    }
+    .copy-btn {
+      background: none; border: none; color: var(--muted); cursor: pointer;
+      font-size: .9rem; padding: 2px 4px; border-radius: 3px; transition: color .15s;
+    }
+    .copy-btn:hover  { color: var(--accent); }
+    .copy-btn.copied { color: var(--success); }
+
+    .file-size { color: var(--muted); font-size: .78rem; }
+    .date-cell { color: var(--muted); font-size: .78rem; white-space: nowrap; }
+
+    .actions { display: flex; align-items: center; gap: .25rem; }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center; padding: 3rem 1rem; color: var(--muted);
+    }
+    .empty-state .ei { font-size: 2.5rem; margin-bottom: .75rem; }
+    .empty-state p  { font-size: .88rem; }
+
+    /* Spinner */
+    .spinner {
+      width: 18px; height: 18px; border-radius: 50%;
+      border: 2px solid var(--border); border-top-color: var(--accent);
+      animation: spin .6s linear infinite; display: inline-block;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Progress bar */
+    #upload-progress-wrap {
+      height: 3px; background: var(--border); border-radius: 2px;
+      margin-top: 1rem; display: none;
+    }
+    #upload-progress-bar { height: 100%; background: var(--accent); border-radius: 2px; width: 0%; transition: width .2s; }
+
+    /* ── Report badge ── */
+    .report-badge {
+      display: inline-flex; align-items: center; gap: .28rem;
+      background: rgba(239,68,68,.12); color: #f87171;
+      border: 1px solid rgba(239,68,68,.3);
+      border-radius: 20px; padding: 2px 9px; font-size: .72rem;
+      font-weight: 700; cursor: pointer; transition: background .15s; white-space: nowrap;
+    }
+    .report-badge:hover { background: rgba(239,68,68,.24); }
+    .report-badge.none {
+      color: var(--muted); background: none; border-color: var(--border); font-weight: 400;
+    }
+    .report-badge.none:hover { border-color: var(--text); color: var(--text); }
+
+    /* ── Reports modal ── */
+    #reports-modal {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,.65); backdrop-filter: blur(4px);
+      display: none; align-items: center; justify-content: center; padding: 1rem;
+    }
+    #reports-modal.show { display: flex; }
+    #reports-panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; width: 680px; max-width: 100%;
+      max-height: 85vh; display: flex; flex-direction: column;
+      box-shadow: 0 24px 60px rgba(0,0,0,.5);
+    }
+    .rm-header {
+      padding: 1rem 1.5rem; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: .75rem; flex-shrink: 0;
+    }
+    .rm-header h2 { font-size: .95rem; font-weight: 700; flex: 1; }
+    .rm-sub { font-size: .75rem; color: var(--muted); margin-top: .1rem; }
+    .rm-body { flex: 1; overflow-y: auto; padding: 1rem 1.5rem; display: flex; flex-direction: column; gap: .65rem; }
+
+    /* Individual report card */
+    .rc {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; padding: .85rem 1rem; display: flex; flex-direction: column; gap: .5rem;
+    }
+    .rc-top { display: flex; align-items: center; gap: .55rem; flex-wrap: wrap; }
+    .rc-element { font-family: 'Courier New', monospace; font-size: .82rem; color: var(--accent); font-weight: 700; }
+    .rc-step {
+      font-size: .68rem; color: var(--muted); background: var(--surface);
+      border: 1px solid var(--border); border-radius: 4px; padding: 1px 7px;
+    }
+    .rc-time { font-size: .7rem; color: var(--muted); margin-left: auto; white-space: nowrap; }
+    .rc-note { font-size: .85rem; color: var(--text); line-height: 1.55; white-space: pre-wrap; }
+    .rc-bottom { display: flex; align-items: center; gap: .6rem; }
+    .rc-photo-btn {
+      font-size: .72rem; color: var(--accent); background: rgba(79,158,255,.08);
+      border: 1px solid rgba(79,158,255,.2); border-radius: 5px;
+      padding: 3px 8px; cursor: pointer; transition: background .12s;
+    }
+    .rc-photo-btn:hover { background: rgba(79,158,255,.18); }
+    .rm-empty { text-align: center; padding: 2.5rem; color: var(--muted); font-size: .88rem; }
+
+    /* Photo lightbox */
+    #photo-lightbox {
+      position: fixed; inset: 0; z-index: 400;
+      background: rgba(0,0,0,.9);
+      display: none; align-items: center; justify-content: center;
+      cursor: zoom-out; padding: 1.5rem;
+    }
+    #photo-lightbox.show { display: flex; }
+    #photo-lightbox img { max-width: 100%; max-height: 100%; border-radius: 6px; object-fit: contain; }
+
+    /* Delete confirm overlay */
+    #confirm-overlay {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,.6); backdrop-filter: blur(4px);
+      display: none; align-items: center; justify-content: center;
+    }
+    #confirm-overlay.show { display: flex; }
+    .confirm-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.75rem;
+      width: 100%; max-width: 380px;
+      display: flex; flex-direction: column; gap: 1rem;
+    }
+    .confirm-box h3  { font-size: 1rem; font-weight: 700; }
+    .confirm-box p   { color: var(--muted); font-size: .85rem; line-height: 1.5; }
+    .confirm-box .confirm-btns { display: flex; gap: .75rem; justify-content: flex-end; margin-top: .25rem; }
+  </style>
+</head>
+<body>
+
+<!-- ── Password gate ── -->
+<div id="gate">
+  <div class="gate-box">
+    <h1>3DM Projects — Admin</h1>
+    <p>Enter the admin password to manage projects and client access codes.</p>
+    <div class="field">
+      <label for="pw-input">Password</label>
+      <input type="password" id="pw-input" placeholder="Admin password" autocomplete="current-password">
+    </div>
+    <div id="gate-error"></div>
+    <button class="btn btn-primary" id="pw-submit">Sign in</button>
+  </div>
+</div>
+
+<!-- ── Main app ── -->
+<div id="app">
+  <header>
+    <h1>3DM Project Admin</h1>
+    <span class="badge" id="project-count">— projects</span>
+    <button class="btn btn-ghost btn-sm" id="all-reports-btn" style="display:none">🚩 Reports <span id="all-reports-count" style="margin-left:.2rem"></span></button>
+    <button class="btn btn-ghost btn-sm" id="logout-btn">Sign out</button>
+  </header>
+
+  <main>
+
+    <!-- Upload card -->
+    <div class="card">
+      <div class="card-header">
+        <h2>Upload new project</h2>
+      </div>
+      <div class="card-body">
+        <div id="drop-zone">
+          <input type="file" id="file-input" accept=".3dm">
+          <div class="dz-icon">📂</div>
+          <p><strong>Click to browse</strong> or drag a .3dm file here</p>
+          <div id="file-chosen"></div>
+        </div>
+
+        <div class="form-row">
+          <div class="field">
+            <label for="project-name">Project name <span style="color:var(--danger)">*</span></label>
+            <input type="text" id="project-name" placeholder="e.g. Hansen Residence">
+          </div>
+          <div class="field">
+            <label for="client-name">Client name</label>
+            <input type="text" id="client-name" placeholder="e.g. Hansen">
+          </div>
+        </div>
+
+        <div id="upload-progress-wrap"><div id="upload-progress-bar"></div></div>
+
+        <div class="upload-footer">
+          <span id="upload-status"></span>
+          <button class="btn btn-primary" id="upload-btn" disabled>Upload &amp; generate code</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Projects table card -->
+    <div class="card">
+      <div class="card-header">
+        <h2>All projects</h2>
+        <button class="btn btn-ghost btn-sm" id="refresh-btn">↺ Refresh</button>
+      </div>
+      <div class="card-body" style="padding:0">
+        <div class="tbl-wrap" id="table-wrap">
+          <div class="empty-state"><div class="spinner"></div></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ── Reports modal ── -->
+<div id="reports-modal">
+  <div id="reports-panel">
+    <div class="rm-header">
+      <div style="flex:1;min-width:0">
+        <h2 id="rm-title">Reports</h2>
+        <div class="rm-sub" id="rm-sub"></div>
+      </div>
+      <button class="btn btn-ghost btn-sm" id="rm-close">Close</button>
+    </div>
+    <div class="rm-body" id="rm-body"></div>
+  </div>
+</div>
+
+<!-- ── Photo lightbox ── -->
+<div id="photo-lightbox" id="photo-lightbox">
+  <img id="lightbox-img" src="" alt="Report photo">
+</div>
+
+<!-- ── Delete confirm dialog ── -->
+<div id="confirm-overlay">
+  <div class="confirm-box">
+    <h3>Delete project?</h3>
+    <p id="confirm-text">This will permanently delete the project and its .3dm file. This cannot be undone.</p>
+    <div class="confirm-btns">
+      <button class="btn btn-ghost" id="confirm-cancel">Cancel</button>
+      <button class="btn btn-primary" id="confirm-delete" style="background:var(--danger)">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Auth ─────────────────────────────────────────────────────────────────────
+let adminPassword = sessionStorage.getItem('adminPw') || '';
+const gate  = document.getElementById('gate');
+const app   = document.getElementById('app');
+
+function showApp() { gate.classList.add('hidden'); app.classList.add('show'); loadProjects(); }
+function showGate() { gate.classList.remove('hidden'); app.classList.remove('show'); }
+
+if (adminPassword) tryAuth(adminPassword);
+
+document.getElementById('pw-submit').addEventListener('click', () => {
+  const pw = document.getElementById('pw-input').value.trim();
+  if (pw) tryAuth(pw);
+});
+document.getElementById('pw-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('pw-submit').click();
+});
+document.getElementById('logout-btn').addEventListener('click', () => {
+  adminPassword = '';
+  sessionStorage.removeItem('adminPw');
+  document.getElementById('pw-input').value = '';
+  document.getElementById('gate-error').textContent = '';
+  showGate();
+});
+
+async function tryAuth(pw) {
+  try {
+    const res = await fetch('/api/viewer/projects', { headers: { 'x-admin-password': pw } });
+    if (res.status === 401) {
+      document.getElementById('gate-error').textContent = 'Incorrect password.';
+      return;
+    }
+    adminPassword = pw;
+    sessionStorage.setItem('adminPw', pw);
+    document.getElementById('gate-error').textContent = '';
+    showApp();
+  } catch {
+    document.getElementById('gate-error').textContent = 'Could not reach server.';
+  }
+}
+
+// ── Upload ───────────────────────────────────────────────────────────────────
+let chosenFile = null;
+const fileInput   = document.getElementById('file-input');
+const dropZone    = document.getElementById('drop-zone');
+const fileChosen  = document.getElementById('file-chosen');
+const uploadBtn   = document.getElementById('upload-btn');
+const uploadStatus = document.getElementById('upload-status');
+
+function setFile(f) {
+  if (!f || !f.name.toLowerCase().endsWith('.3dm')) {
+    uploadStatus.textContent = 'Only .3dm files are accepted.';
+    uploadStatus.className = 'err';
+    return;
+  }
+  chosenFile = f;
+  fileChosen.textContent = `✓ ${f.name}  (${fmtSize(f.size)})`;
+  updateUploadBtn();
+}
+
+fileInput.addEventListener('change', e => { if (e.target.files[0]) setFile(e.target.files[0]); });
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const f = [...e.dataTransfer.files].find(f => f.name.toLowerCase().endsWith('.3dm'));
+  if (f) setFile(f);
+});
+
+document.getElementById('project-name').addEventListener('input', updateUploadBtn);
+function updateUploadBtn() {
+  uploadBtn.disabled = !chosenFile || !document.getElementById('project-name').value.trim();
+}
+
+uploadBtn.addEventListener('click', async () => {
+  const projectName = document.getElementById('project-name').value.trim();
+  const clientName  = document.getElementById('client-name').value.trim();
+  if (!chosenFile || !projectName) return;
+
+  uploadBtn.disabled = true;
+  uploadStatus.textContent = '';
+  const progressWrap = document.getElementById('upload-progress-wrap');
+  const progressBar  = document.getElementById('upload-progress-bar');
+  progressWrap.style.display = 'block';
+  progressBar.style.width = '0%';
+
+  const fd = new FormData();
+  fd.append('file', chosenFile);
+  fd.append('projectName', projectName);
+  fd.append('clientName', clientName);
+
+  try {
+    // Use XHR so we get upload progress
+    const result = await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/viewer/projects');
+      xhr.setRequestHeader('x-admin-password', adminPassword);
+      xhr.upload.addEventListener('progress', e => {
+        if (e.lengthComputable)
+          progressBar.style.width = `${Math.round(e.loaded / e.total * 100)}%`;
+      });
+      xhr.addEventListener('load', () => {
+        try { resolve({ status: xhr.status, data: JSON.parse(xhr.responseText) }); }
+        catch { reject(new Error('Invalid response')); }
+      });
+      xhr.addEventListener('error', () => reject(new Error('Network error')));
+      xhr.send(fd);
+    });
+
+    progressBar.style.width = '100%';
+    if (result.status !== 200) throw new Error(result.data.error || 'Upload failed');
+
+    const p = result.data.project;
+    uploadStatus.textContent = `✓ Created — code: ${p.code}`;
+    uploadStatus.className = 'ok';
+
+    // Reset form
+    chosenFile = null;
+    fileInput.value = '';
+    fileChosen.textContent = '';
+    document.getElementById('project-name').value = '';
+    document.getElementById('client-name').value  = '';
+    updateUploadBtn();
+    setTimeout(() => { progressWrap.style.display = 'none'; progressBar.style.width = '0%'; }, 800);
+    loadProjects();
+  } catch (err) {
+    uploadStatus.textContent = err.message;
+    uploadStatus.className = 'err';
+    progressWrap.style.display = 'none';
+    uploadBtn.disabled = false;
+  }
+});
+
+// ── Projects table ────────────────────────────────────────────────────────────
+document.getElementById('refresh-btn').addEventListener('click', loadProjects);
+
+async function loadProjects() {
+  const wrap = document.getElementById('table-wrap');
+  wrap.innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
+  try {
+    const res = await fetch('/api/viewer/projects', { headers: { 'x-admin-password': adminPassword } });
+    const projects = await res.json();
+    document.getElementById('project-count').textContent =
+      `${projects.length} project${projects.length !== 1 ? 's' : ''}`;
+    renderTable(projects);
+  } catch {
+    wrap.innerHTML = '<div class="empty-state"><p>Failed to load projects.</p></div>';
+  }
+}
+
+function renderTable(projects) {
+  const wrap = document.getElementById('table-wrap');
+  if (!projects.length) {
+    wrap.innerHTML = `<div class="empty-state">
+      <div class="ei">📋</div>
+      <p>No projects yet. Upload a .3dm file above to get started.</p>
+    </div>`;
+    return;
+  }
+
+  const rows = projects.map(p => {
+    const viewerUrl = `${location.protocol}//${location.host.replace(':3000', ':3001')}/?code=${p.code}`;
+    return `<tr data-code="${p.code}">
+      <td>
+        <div class="project-name">${esc(p.projectName)}</div>
+        <div class="client-name">${esc(p.clientName || '—')}</div>
+      </td>
+      <td>
+        <div class="code-cell">
+          <span class="code-pill">${p.code}</span>
+          <button class="copy-btn" title="Copy code" data-copy="${p.code}">⎘</button>
+        </div>
+      </td>
+      <td><span class="file-size">${esc(p.filename)}<br>${fmtSize(p.fileSize)}</span></td>
+      <td class="date-cell">${fmtDate(p.createdAt)}</td>
+      <td class="actions">
+        <a href="${viewerUrl}" target="_blank" class="btn btn-ghost btn-sm">View ↗</a>
+        <button class="btn btn-danger" data-delete="${p.code}" data-name="${esc(p.projectName)}">Delete</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `<table>
+    <thead><tr>
+      <th>Project</th>
+      <th>Client code</th>
+      <th>File</th>
+      <th>Created</th>
+      <th></th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+
+  // Copy buttons
+  wrap.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      navigator.clipboard.writeText(btn.dataset.copy).then(() => {
+        btn.textContent = '✓';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = '⎘'; btn.classList.remove('copied'); }, 1500);
+      });
+    });
+  });
+
+  // Delete buttons
+  wrap.querySelectorAll('[data-delete]').forEach(btn => {
+    btn.addEventListener('click', () => openConfirm(btn.dataset.delete, btn.dataset.name));
+  });
+}
+
+// ── Delete confirm ────────────────────────────────────────────────────────────
+let pendingDelete = null;
+const overlay = document.getElementById('confirm-overlay');
+
+function openConfirm(code, name) {
+  pendingDelete = code;
+  document.getElementById('confirm-text').textContent =
+    `"${name}" and its .3dm file will be permanently deleted. This cannot be undone.`;
+  overlay.classList.add('show');
+}
+
+document.getElementById('confirm-cancel').addEventListener('click', () => {
+  overlay.classList.remove('show');
+  pendingDelete = null;
+});
+
+document.getElementById('confirm-delete').addEventListener('click', async () => {
+  if (!pendingDelete) return;
+  const code = pendingDelete;
+  overlay.classList.remove('show');
+  pendingDelete = null;
+  try {
+    await fetch(`/api/viewer/projects/${code}`, {
+      method: 'DELETE',
+      headers: { 'x-admin-password': adminPassword }
+    });
+    loadProjects();
+  } catch {
+    alert('Delete failed. Try again.');
+  }
+});
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function fmtSize(bytes) {
+  if (!bytes) return '—';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Reports ───────────────────────────────────────────────────────────────────
+let allReports    = [];
+let reportsByName = {};   // projectName → [report, …]
+
+async function loadReports() {
+  try {
+    const res = await fetch('/api/viewer/reports', {
+      headers: { 'x-admin-password': adminPassword }
+    });
+    if (!res.ok) return;
+    allReports = await res.json();
+  } catch {
+    allReports = [];
+  }
+  // Index by projectName
+  reportsByName = {};
+  allReports.forEach(r => {
+    const key = (r.projectName || '').trim();
+    if (!reportsByName[key]) reportsByName[key] = [];
+    reportsByName[key].push(r);
+  });
+  // Update "All Reports" header button
+  const btn = document.getElementById('all-reports-btn');
+  const cnt = document.getElementById('all-reports-count');
+  if (allReports.length > 0) {
+    btn.style.display = '';
+    btn.style.color   = '#f87171';
+    cnt.textContent   = `(${allReports.length})`;
+  } else {
+    btn.style.display = 'none';
+  }
+}
+
+// Patch loadProjects to also refresh reports
+const _origLoad = loadProjects;
+loadProjects = async function () {
+  const wrap = document.getElementById('table-wrap');
+  wrap.innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
+  try {
+    const [projRes] = await Promise.all([
+      fetch('/api/viewer/projects', { headers: { 'x-admin-password': adminPassword } }),
+      loadReports()
+    ]);
+    const projects = await projRes.json();
+    document.getElementById('project-count').textContent =
+      `${projects.length} project${projects.length !== 1 ? 's' : ''}`;
+    renderTable(projects);
+  } catch {
+    wrap.innerHTML = '<div class="empty-state"><p>Failed to load projects.</p></div>';
+  }
+};
+
+// Patch renderTable to inject report badges
+const _origRender = renderTable;
+renderTable = function (projects) {
+  const wrap = document.getElementById('table-wrap');
+  if (!projects.length) {
+    wrap.innerHTML = `<div class="empty-state">
+      <div class="ei">📋</div>
+      <p>No projects yet. Upload a .3dm file above to get started.</p>
+    </div>`;
+    return;
+  }
+
+  const rows = projects.map(p => {
+    const viewerUrl    = `${location.protocol}//${location.host.replace(':3000',':3001')}/?code=${p.code}`;
+    const rCount       = (reportsByName[p.projectName] || []).length;
+    const badgeClass   = rCount > 0 ? 'report-badge' : 'report-badge none';
+    const badgeLabel   = rCount > 0 ? `🚩 ${rCount} report${rCount !== 1 ? 's' : ''}` : '🚩 No reports';
+    return `<tr data-code="${p.code}">
+      <td>
+        <div class="project-name">${esc(p.projectName)}</div>
+        <div class="client-name">${esc(p.clientName || '—')}</div>
+      </td>
+      <td>
+        <div class="code-cell">
+          <span class="code-pill">${p.code}</span>
+          <button class="copy-btn" title="Copy code" data-copy="${p.code}">⎘</button>
+        </div>
+      </td>
+      <td><span class="file-size">${esc(p.filename)}<br>${fmtSize(p.fileSize)}</span></td>
+      <td class="date-cell">${fmtDate(p.createdAt)}</td>
+      <td class="actions">
+        <button class="${badgeClass}" data-reports="${esc(p.projectName)}">${badgeLabel}</button>
+        <a href="${viewerUrl}" target="_blank" class="btn btn-ghost btn-sm">View ↗</a>
+        <button class="btn btn-danger" data-delete="${p.code}" data-name="${esc(p.projectName)}">Delete</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `<table>
+    <thead><tr>
+      <th>Project</th>
+      <th>Client code</th>
+      <th>File</th>
+      <th>Created</th>
+      <th></th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+
+  // Copy buttons
+  wrap.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      navigator.clipboard.writeText(btn.dataset.copy).then(() => {
+        btn.textContent = '✓';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = '⎘'; btn.classList.remove('copied'); }, 1500);
+      });
+    });
+  });
+
+  // Delete buttons
+  wrap.querySelectorAll('[data-delete]').forEach(btn => {
+    btn.addEventListener('click', () => openConfirm(btn.dataset.delete, btn.dataset.name));
+  });
+
+  // Report badge buttons
+  wrap.querySelectorAll('[data-reports]').forEach(btn => {
+    btn.addEventListener('click', () => openReportsModal(btn.dataset.reports));
+  });
+};
+
+// ── Reports modal ─────────────────────────────────────────────────────────────
+const reportsModal = document.getElementById('reports-modal');
+
+function openReportsModal(projectName) {
+  const reports = projectName === '__all__'
+    ? allReports
+    : (reportsByName[projectName] || []);
+
+  const title   = projectName === '__all__' ? 'All Reports' : `Reports — ${projectName}`;
+  const sub     = reports.length
+    ? `${reports.length} report${reports.length !== 1 ? 's' : ''}`
+    : 'No reports yet';
+
+  document.getElementById('rm-title').textContent = title;
+  document.getElementById('rm-sub').textContent   = sub;
+
+  const body = document.getElementById('rm-body');
+  if (!reports.length) {
+    body.innerHTML = `<div class="rm-empty">No reports for this project yet. 🎉</div>`;
+  } else {
+    body.innerHTML = reports.map((r, i) => {
+      const when    = r.receivedAt ? fmtDateTime(r.receivedAt) : '—';
+      const element = r.element || '(unknown element)';
+      const stepTxt = r.step    ? `Step ${r.step}` : '';
+      const modTxt  = r.module  ? `Kit: ${r.module}` : '';
+      const hasPhoto = r.photo && r.photo !== '[photo attached]';
+      const photoBit = hasPhoto
+        ? `<button class="rc-photo-btn" data-photo-idx="${i}">📷 View photo</button>`
+        : (r.photo === '[photo attached]'
+          ? `<span class="rc-photo-btn" style="cursor:default;opacity:.6">📷 Photo on server</span>`
+          : '');
+      const metaBits = [modTxt, stepTxt].filter(Boolean).join(' · ');
+      return `<div class="rc" data-idx="${i}">
+        <div class="rc-top">
+          <span class="rc-element">${esc(element)}</span>
+          ${metaBits ? `<span class="rc-step">${esc(metaBits)}</span>` : ''}
+          ${projectName === '__all__' ? `<span class="rc-step" style="color:var(--accent)">${esc(r.projectName || '')}</span>` : ''}
+          <span class="rc-time">${when}</span>
+        </div>
+        <div class="rc-note">${esc(r.note || '')}</div>
+        ${photoBit ? `<div class="rc-bottom">${photoBit}</div>` : ''}
+      </div>`;
+    }).join('');
+
+    // Wire up photo buttons — use stored reports array directly
+    body.querySelectorAll('[data-photo-idx]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const r = reports[parseInt(btn.dataset.photoIdx, 10)];
+        if (r?.photo && r.photo !== '[photo attached]') openLightbox(r.photo);
+      });
+    });
+  }
+
+  reportsModal.classList.add('show');
+}
+
+document.getElementById('rm-close').addEventListener('click', () =>
+  reportsModal.classList.remove('show'));
+reportsModal.addEventListener('click', e => {
+  if (e.target === reportsModal) reportsModal.classList.remove('show');
+});
+
+document.getElementById('all-reports-btn').addEventListener('click', () =>
+  openReportsModal('__all__'));
+
+// ── Photo lightbox ────────────────────────────────────────────────────────────
+const lightbox = document.getElementById('photo-lightbox');
+
+function openLightbox(src) {
+  document.getElementById('lightbox-img').src = src;
+  lightbox.classList.add('show');
+}
+lightbox.addEventListener('click', () => {
+  lightbox.classList.remove('show');
+  document.getElementById('lightbox-img').src = '';
+});
+
+// ── Extra date helper ─────────────────────────────────────────────────────────
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
+}
+</script>
+</body>
+</html>

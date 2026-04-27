@@ -1,0 +1,180 @@
+const express = require("express");
+const path    = require("path");
+const fs      = require("fs");
+const cors    = require("cors");
+const multer  = require("multer");
+const crypto  = require("crypto");
+
+const app  = express();
+const PORT = process.env.PORT || 4000;
+
+// Set ADMIN_PASSWORD env var before deploying, or change the fallback here
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "changeme";
+
+const PROJECTS_PATH = path.join(__dirname, "projects.json");
+const UPLOADS_DIR   = path.join(__dirname, "uploads");
+
+if (!fs.existsSync(UPLOADS_DIR))   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+if (!fs.existsSync(PROJECTS_PATH)) fs.writeFileSync(PROJECTS_PATH, "[]");
+
+app.use(cors());
+app.use(express.json());
+app.use(express.static(path.join(__dirname, "..", "public")));
+
+// ------- Helpers -------
+function readProjects()          { return JSON.parse(fs.readFileSync(PROJECTS_PATH, "utf8")); }
+function writeProjects(projects) { fs.writeFileSync(PROJECTS_PATH, JSON.stringify(projects, null, 2)); }
+
+function generateCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O, 1/I/L
+  let code;
+  do {
+    code = Array.from(crypto.randomBytes(6)).map(b => chars[b % chars.length]).join("");
+  } while (readProjects().some(p => p.code === code));
+  return code;
+}
+
+function requireAdmin(req, res, next) {
+  const pw = req.headers["x-admin-password"];
+  if (!pw || pw !== ADMIN_PASSWORD) return res.status(401).json({ error: "Unauthorized" });
+  next();
+}
+
+// Multer: land in _tmp, rename into code folder after code is assigned
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const tmp = path.join(UPLOADS_DIR, "_tmp");
+      fs.mkdirSync(tmp, { recursive: true });
+      cb(null, tmp);
+    },
+    filename: (req, file, cb) => cb(null, `${Date.now()}_${file.originalname}`)
+  }),
+  fileFilter: (req, file, cb) => {
+    if (path.extname(file.originalname).toLowerCase() !== ".3dm")
+      return cb(new Error("Only .3dm files are allowed"));
+    cb(null, true);
+  },
+  limits: { fileSize: 500 * 1024 * 1024 } // 500 MB
+});
+
+// ------- Routes -------
+
+// POST /api/viewer/projects — upload file + create project (admin)
+app.post("/api/viewer/projects", requireAdmin, upload.single("file"), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+  const { projectName, clientName } = req.body;
+  if (!projectName?.trim()) return res.status(400).json({ error: "projectName is required" });
+
+  const code       = generateCode();
+  const projectDir = path.join(UPLOADS_DIR, code);
+  fs.mkdirSync(projectDir, { recursive: true });
+  fs.renameSync(req.file.path, path.join(projectDir, req.file.originalname));
+
+  const project = {
+    code,
+    projectName: projectName.trim(),
+    clientName:  (clientName || "").trim(),
+    filename:    req.file.originalname,
+    fileSize:    req.file.size,
+    createdAt:   new Date().toISOString()
+  };
+
+  const projects = readProjects();
+  projects.unshift(project);
+  writeProjects(projects);
+  res.json({ ok: true, project });
+});
+
+// GET /api/viewer/projects — list all projects (admin)
+app.get("/api/viewer/projects", requireAdmin, (req, res) => res.json(readProjects()));
+
+// DELETE /api/viewer/projects/:code — delete project + files (admin)
+app.delete("/api/viewer/projects/:code", requireAdmin, (req, res) => {
+  const code   = req.params.code.toUpperCase();
+  let projects = readProjects();
+  const idx    = projects.findIndex(p => p.code === code);
+  if (idx === -1) return res.status(404).json({ error: "Project not found" });
+
+  projects.splice(idx, 1);
+  writeProjects(projects);
+
+  const dir = path.join(UPLOADS_DIR, code);
+  if (fs.existsSync(dir)) {
+    fs.readdirSync(dir).forEach(f => fs.unlinkSync(path.join(dir, f)));
+    fs.rmdirSync(dir);
+  }
+  res.json({ ok: true });
+});
+
+// GET /api/viewer/project/:code — public lookup by code
+app.get("/api/viewer/project/:code", (req, res) => {
+  const project = readProjects().find(p => p.code === req.params.code.toUpperCase());
+  if (!project) return res.status(404).json({ error: "Invalid code" });
+  res.json({ projectName: project.projectName, clientName: project.clientName, filename: project.filename });
+});
+
+// GET /api/viewer/files/:code/:filename — stream the .3dm file
+app.get("/api/viewer/files/:code/:filename", (req, res) => {
+  const code    = req.params.code.toUpperCase();
+  const { filename } = req.params;
+  const project = readProjects().find(p => p.code === code);
+  if (!project || project.filename !== filename) return res.status(404).json({ error: "Not found" });
+  const filePath = path.join(UPLOADS_DIR, code, filename);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: "File missing on disk" });
+  res.sendFile(filePath);
+});
+
+// POST /api/viewer/reports — receive a flag/issue report from a customer
+const REPORTS_PATH = path.join(__dirname, "reports.json");
+if (!fs.existsSync(REPORTS_PATH)) fs.writeFileSync(REPORTS_PATH, "[]");
+
+app.post("/api/viewer/reports", express.json({ limit: "12mb" }), (req, res) => {
+  const { element, module: mod, step, note, photo, projectName, sentAt } = req.body || {};
+  if (!note?.trim()) return res.status(400).json({ error: "note is required" });
+
+  const report = {
+    id:          Date.now(),
+    projectName: String(projectName || "").trim(),
+    module:      String(mod        || "").trim(),
+    element:     String(element    || "").trim(),
+    step:        step ?? null,
+    note:        String(note).trim(),
+    photo:       photo || null,   // base64 data-URL or null
+    receivedAt:  new Date().toISOString(),
+    sentAt:      sentAt || null,
+  };
+
+  try {
+    const reports = JSON.parse(fs.readFileSync(REPORTS_PATH, "utf8"));
+    reports.unshift(report);
+    // Keep most recent 500 reports; avoid unbounded growth
+    if (reports.length > 500) reports.length = 500;
+    fs.writeFileSync(REPORTS_PATH, JSON.stringify(reports, null, 2));
+    console.log(`[report] ${report.projectName} / ${report.element}: ${report.note.slice(0, 80)}`);
+    res.json({ ok: true, id: report.id });
+  } catch (err) {
+    console.error("Failed to save report:", err);
+    res.status(500).json({ error: "Could not save report" });
+  }
+});
+
+// GET /api/viewer/reports — list all reports (admin only)
+app.get("/api/viewer/reports", requireAdmin, (req, res) => {
+  try {
+    const reports = JSON.parse(fs.readFileSync(REPORTS_PATH, "utf8"));
+    // Strip photo payloads from list view to keep response small
+    res.json(reports.map(r => ({ ...r, photo: r.photo ? "[photo attached]" : null })));
+  } catch {
+    res.json([]);
+  }
+});
+
+// Convenience routes
+app.get("/",      (req, res) => res.redirect("/viewer.html"));
+app.get("/admin", (req, res) => res.redirect("/viewer-admin.html"));
+
+app.listen(PORT, () => {
+  console.log(`Woodstock Assembly Viewer running on http://localhost:${PORT}`);
+  console.log(`Admin panel: http://localhost:${PORT}/admin`);
+});
