@@ -2,6 +2,7 @@ node_modules/
 
 # Server data — never commit, preserved on each machine
 server/uploads/
+server/projects.json
 server/demo.json
 server/reports.json
 

@@ -216,6 +216,83 @@ app.post("/api/viewer/demo", requireAdmin, express.json(), (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Recovery: scan uploads and rebuild projects.json ─────────────────────────
+// GET /api/viewer/scan-uploads — admin: scan uploads dir and return discovered projects
+// POST /api/viewer/scan-uploads — admin: scan AND write recovered projects to projects.json
+app.get("/api/viewer/scan-uploads", requireAdmin, (req, res) => {
+  try {
+    const existing  = readProjects();
+    const existCodes = new Set(existing.map(p => p.code));
+    const discovered = [];
+
+    if (fs.existsSync(UPLOADS_DIR)) {
+      for (const entry of fs.readdirSync(UPLOADS_DIR, { withFileTypes: true })) {
+        if (!entry.isDirectory() || entry.name === "_tmp") continue;
+        const code = entry.name.toUpperCase();
+        if (existCodes.has(code)) continue; // already in projects.json
+
+        const dir   = path.join(UPLOADS_DIR, entry.name);
+        const files = fs.readdirSync(dir).filter(f => f.endsWith(".3dm"));
+        if (!files.length) continue;
+
+        const filename = files[0];
+        const stat     = fs.statSync(path.join(dir, filename));
+        discovered.push({
+          code,
+          projectName: filename.replace(/\.3dm$/i, ""),
+          clientName:  "",
+          modelType:   "production",
+          filename,
+          fileSize:    stat.size,
+          createdAt:   stat.birthtime.toISOString()
+        });
+      }
+    }
+    res.json({ existing: existing.length, discovered });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+app.post("/api/viewer/scan-uploads", requireAdmin, (req, res) => {
+  try {
+    const existing   = readProjects();
+    const existCodes = new Set(existing.map(p => p.code));
+    const recovered  = [];
+
+    if (fs.existsSync(UPLOADS_DIR)) {
+      for (const entry of fs.readdirSync(UPLOADS_DIR, { withFileTypes: true })) {
+        if (!entry.isDirectory() || entry.name === "_tmp") continue;
+        const code = entry.name.toUpperCase();
+        if (existCodes.has(code)) continue;
+
+        const dir   = path.join(UPLOADS_DIR, entry.name);
+        const files = fs.readdirSync(dir).filter(f => f.endsWith(".3dm"));
+        if (!files.length) continue;
+
+        const filename = files[0];
+        const stat     = fs.statSync(path.join(dir, filename));
+        recovered.push({
+          code,
+          projectName: filename.replace(/\.3dm$/i, ""),
+          clientName:  "",
+          modelType:   "production",
+          filename,
+          fileSize:    stat.size,
+          createdAt:   stat.birthtime.toISOString()
+        });
+      }
+    }
+
+    const merged = [...existing, ...recovered];
+    writeProjects(merged);
+    console.log(`[recover] Recovered ${recovered.length} project(s) from uploads/`);
+    res.json({ ok: true, recovered: recovered.length, total: merged.length, projects: recovered });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 // Convenience routes
 app.get("/",      (req, res) => res.redirect("/viewer.html"));
 app.get("/admin", (req, res) => res.redirect("/viewer-admin.html"));
