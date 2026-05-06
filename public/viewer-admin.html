@@ -8,6 +8,17 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
+      --bg:       #f5f6f8;
+      --surface:  #ffffff;
+      --surface2: #eef0f5;
+      --border:   #d0d5e2;
+      --accent:   #2563eb;
+      --danger:   #dc2626;
+      --success:  #16a34a;
+      --text:     #111827;
+      --muted:    #6b7280;
+    }
+    html[data-theme="dark"] {
       --bg:       #0d0f14;
       --surface:  #161820;
       --surface2: #1e2029;
@@ -206,6 +217,45 @@
     }
     #upload-progress-bar { height: 100%; background: var(--accent); border-radius: 2px; width: 0%; transition: width .2s; }
 
+    /* ── Model type ── */
+    .type-radios { display: flex; gap: .5rem; margin-top: .35rem; flex-wrap: wrap; }
+    .type-radio-label {
+      display: flex; align-items: center; gap: .35rem; cursor: pointer;
+      font-size: .82rem; padding: .38rem .75rem;
+      border: 1.5px solid var(--border); border-radius: 7px; user-select: none;
+      transition: border-color .15s, background .15s;
+    }
+    .type-radio-label input { display: none; }
+    .type-radio-label:has(input:checked) {
+      border-color: var(--accent); background: rgba(79,158,255,.07);
+      color: var(--accent); font-weight: 600;
+    }
+    /* Segmented type toggle in the table */
+    .type-seg {
+      display: inline-flex; border: 1px solid var(--border); border-radius: 7px;
+      overflow: hidden; flex-shrink: 0;
+    }
+    .type-seg button {
+      border: none; background: none; cursor: pointer;
+      padding: .25rem .6rem; font-size: .73rem; font-weight: 600;
+      color: var(--muted); transition: background .12s, color .12s;
+      white-space: nowrap;
+    }
+    .type-seg button:first-child { border-right: 1px solid var(--border); }
+    .type-seg button.active-prod {
+      background: rgba(34,197,94,.13); color: #16a34a; cursor: default;
+    }
+    .type-seg button.active-quot {
+      background: rgba(99,102,241,.13); color: #818cf8; cursor: default;
+    }
+    .type-pill {
+      display: inline-flex; align-items: center; gap: .25rem;
+      font-size: .62rem; font-weight: 700; padding: .1rem .42rem;
+      border-radius: 99px; text-transform: uppercase; letter-spacing: .05em; white-space: nowrap;
+    }
+    .type-pill.production { background: rgba(34,197,94,.12); color: #16a34a; border: 1px solid rgba(34,197,94,.3); }
+    .type-pill.quotation  { background: rgba(99,102,241,.12); color: #818cf8; border: 1px solid rgba(99,102,241,.3); }
+
     /* ── Report badge ── */
     .report-badge {
       display: inline-flex; align-items: center; gap: .28rem;
@@ -315,7 +365,9 @@
     <h1>3DM Project Admin</h1>
     <span class="badge" id="project-count">— projects</span>
     <button class="btn btn-ghost btn-sm" id="all-reports-btn" style="display:none">🚩 Reports <span id="all-reports-count" style="margin-left:.2rem"></span></button>
-    <button class="btn btn-ghost btn-sm" id="logout-btn">Sign out</button>
+    <button class="btn btn-ghost btn-sm" id="theme-btn" title="Skift tema">🌙</button>
+    <button class="btn btn-ghost btn-sm" id="lang-btn">EN</button>
+    <button class="btn btn-ghost btn-sm" id="logout-btn" data-i18n="sign_out">Log ud</button>
   </header>
 
   <main>
@@ -341,6 +393,19 @@
           <div class="field">
             <label for="client-name">Client name</label>
             <input type="text" id="client-name" placeholder="e.g. Hansen">
+          </div>
+        </div>
+        <div class="field" style="margin-top:.25rem">
+          <label>Model type</label>
+          <div class="type-radios">
+            <label class="type-radio-label">
+              <input type="radio" name="model-type" value="production" checked>
+              ⚙️ Production
+            </label>
+            <label class="type-radio-label">
+              <input type="radio" name="model-type" value="quotation">
+              📋 Quotation
+            </label>
           </div>
         </div>
 
@@ -493,6 +558,7 @@ uploadBtn.addEventListener('click', async () => {
   fd.append('file', chosenFile);
   fd.append('projectName', projectName);
   fd.append('clientName', clientName);
+  fd.append('modelType', document.querySelector('[name="model-type"]:checked')?.value || 'production');
 
   try {
     // Use XHR so we get upload progress
@@ -525,6 +591,8 @@ uploadBtn.addEventListener('click', async () => {
     fileChosen.textContent = '';
     document.getElementById('project-name').value = '';
     document.getElementById('client-name').value  = '';
+    const prodRadio = document.querySelector('[name="model-type"][value="production"]');
+    if (prodRadio) prodRadio.checked = true;
     updateUploadBtn();
     setTimeout(() => { progressWrap.style.display = 'none'; progressBar.style.width = '0%'; }, 800);
     loadProjects();
@@ -539,18 +607,47 @@ uploadBtn.addEventListener('click', async () => {
 // ── Projects table ────────────────────────────────────────────────────────────
 document.getElementById('refresh-btn').addEventListener('click', loadProjects);
 
+let currentDemoCode = null;
+
 async function loadProjects() {
   const wrap = document.getElementById('table-wrap');
   wrap.innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
   try {
-    const res = await fetch('/api/viewer/projects', { headers: { 'x-admin-password': adminPassword } });
-    const projects = await res.json();
+    const [projRes, demoRes] = await Promise.all([
+      fetch('/api/viewer/projects', { headers: { 'x-admin-password': adminPassword } }),
+      fetch('/api/viewer/demo',     { headers: { 'x-admin-password': adminPassword } }),
+    ]);
+    const projects = await projRes.json();
+    const demoData = await demoRes.json();
+    currentDemoCode = demoData.demo?.code || null;
     document.getElementById('project-count').textContent =
       `${projects.length} project${projects.length !== 1 ? 's' : ''}`;
     renderTable(projects);
   } catch {
     wrap.innerHTML = '<div class="empty-state"><p>Failed to load projects.</p></div>';
   }
+}
+
+async function setModelType(code, type) {
+  try {
+    const res = await fetch(`/api/viewer/projects/${code}/type`, {
+      method: 'PATCH',
+      headers: { 'x-admin-password': adminPassword, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ modelType: type }),
+    });
+    if (res.ok) loadProjects();
+  } catch { alert('Could not update model type.'); }
+}
+
+async function setDemoProject(code) {
+  try {
+    const res = await fetch('/api/viewer/demo', {
+      method: 'POST',
+      headers: { 'x-admin-password': adminPassword, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: currentDemoCode === code ? null : code }),
+    });
+    if (res.ok) loadProjects();
+  } catch { alert('Could not update demo project.'); }
 }
 
 function renderTable(projects) {
@@ -565,9 +662,12 @@ function renderTable(projects) {
 
   const rows = projects.map(p => {
     const viewerUrl = `${location.protocol}//${location.host.replace(':3000', ':3001')}/?code=${p.code}`;
+    const isDemo    = p.code === currentDemoCode;
+    const mType     = p.modelType || 'production';
+    const isQ       = mType === 'quotation';
     return `<tr data-code="${p.code}">
       <td>
-        <div class="project-name">${esc(p.projectName)}</div>
+        <div class="project-name">${esc(p.projectName)}${isDemo ? ' <span style="background:#F6C643;color:#1a1500;font-size:.65rem;font-weight:800;padding:.1rem .45rem;border-radius:99px;letter-spacing:.04em">DEMO</span>' : ''}</div>
         <div class="client-name">${esc(p.clientName || '—')}</div>
       </td>
       <td>
@@ -579,6 +679,14 @@ function renderTable(projects) {
       <td><span class="file-size">${esc(p.filename)}<br>${fmtSize(p.fileSize)}</span></td>
       <td class="date-cell">${fmtDate(p.createdAt)}</td>
       <td class="actions">
+        <span class="type-seg">
+          <button class="${isQ ? '' : 'active-prod'}" data-type="${p.code}" data-target="production" ${isQ ? '' : 'disabled'} title="Set as Production">⚙️ Prod</button>
+          <button class="${isQ ? 'active-quot' : ''}" data-type="${p.code}" data-target="quotation"  ${isQ ? 'disabled' : ''} title="Set as Quotation">📋 Quote</button>
+        </span>
+        <button class="btn ${isDemo ? 'btn-danger' : 'btn-ghost'} btn-sm" data-demo="${p.code}"
+                title="${isDemo ? 'Remove as guide demo' : 'Use as guide demo'}">
+          ${isDemo ? '★ Demo' : '☆ Demo'}
+        </button>
         <a href="${viewerUrl}" target="_blank" class="btn btn-ghost btn-sm">View ↗</a>
         <button class="btn btn-danger" data-delete="${p.code}" data-name="${esc(p.projectName)}">Delete</button>
       </td>
@@ -605,6 +713,16 @@ function renderTable(projects) {
         setTimeout(() => { btn.textContent = '⎘'; btn.classList.remove('copied'); }, 1500);
       });
     });
+  });
+
+  // Type segmented toggle
+  wrap.querySelectorAll('[data-type][data-target]').forEach(btn => {
+    btn.addEventListener('click', () => setModelType(btn.dataset.type, btn.dataset.target));
+  });
+
+  // Demo buttons
+  wrap.querySelectorAll('[data-demo]').forEach(btn => {
+    btn.addEventListener('click', () => setDemoProject(btn.dataset.demo));
   });
 
   // Delete buttons
@@ -701,11 +819,14 @@ loadProjects = async function () {
   const wrap = document.getElementById('table-wrap');
   wrap.innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
   try {
-    const [projRes] = await Promise.all([
+    const [projRes, demoRes] = await Promise.all([
       fetch('/api/viewer/projects', { headers: { 'x-admin-password': adminPassword } }),
+      fetch('/api/viewer/demo',     { headers: { 'x-admin-password': adminPassword } }),
       loadReports()
     ]);
     const projects = await projRes.json();
+    const demoData = await demoRes.json();
+    currentDemoCode = demoData.demo?.code || null;
     document.getElementById('project-count').textContent =
       `${projects.length} project${projects.length !== 1 ? 's' : ''}`;
     renderTable(projects);
@@ -731,9 +852,12 @@ renderTable = function (projects) {
     const rCount       = (reportsByName[p.projectName] || []).length;
     const badgeClass   = rCount > 0 ? 'report-badge' : 'report-badge none';
     const badgeLabel   = rCount > 0 ? `🚩 ${rCount} report${rCount !== 1 ? 's' : ''}` : '🚩 No reports';
+    const isDemo       = p.code === currentDemoCode;
+    const mType        = p.modelType || 'production';
+    const isQ          = mType === 'quotation';
     return `<tr data-code="${p.code}">
       <td>
-        <div class="project-name">${esc(p.projectName)}</div>
+        <div class="project-name">${esc(p.projectName)}${isDemo ? ' <span style="background:#F6C643;color:#1a1500;font-size:.65rem;font-weight:800;padding:.1rem .45rem;border-radius:99px;letter-spacing:.04em">DEMO</span>' : ''}</div>
         <div class="client-name">${esc(p.clientName || '—')}</div>
       </td>
       <td>
@@ -746,6 +870,12 @@ renderTable = function (projects) {
       <td class="date-cell">${fmtDate(p.createdAt)}</td>
       <td class="actions">
         <button class="${badgeClass}" data-reports="${esc(p.projectName)}">${badgeLabel}</button>
+        <span class="type-seg">
+          <button class="${isQ ? '' : 'active-prod'}" data-type="${p.code}" data-target="production" ${isQ ? '' : 'disabled'} title="Set as Production">⚙️ Prod</button>
+          <button class="${isQ ? 'active-quot' : ''}" data-type="${p.code}" data-target="quotation"  ${isQ ? 'disabled' : ''} title="Set as Quotation">📋 Quote</button>
+        </span>
+        <button class="btn ${isDemo ? 'btn-danger' : 'btn-ghost'} btn-sm" data-demo="${p.code}"
+                title="${isDemo ? 'Remove as guide demo' : 'Use as guide demo'}">${isDemo ? '★ Demo' : '☆ Demo'}</button>
         <a href="${viewerUrl}" target="_blank" class="btn btn-ghost btn-sm">View ↗</a>
         <button class="btn btn-danger" data-delete="${p.code}" data-name="${esc(p.projectName)}">Delete</button>
       </td>
@@ -772,6 +902,16 @@ renderTable = function (projects) {
         setTimeout(() => { btn.textContent = '⎘'; btn.classList.remove('copied'); }, 1500);
       });
     });
+  });
+
+  // Type segmented toggle
+  wrap.querySelectorAll('[data-type][data-target]').forEach(btn => {
+    btn.addEventListener('click', () => setModelType(btn.dataset.type, btn.dataset.target));
+  });
+
+  // Demo buttons
+  wrap.querySelectorAll('[data-demo]').forEach(btn => {
+    btn.addEventListener('click', () => setDemoProject(btn.dataset.demo));
   });
 
   // Delete buttons
@@ -870,6 +1010,137 @@ function fmtDateTime(iso) {
     hour: '2-digit', minute: '2-digit'
   });
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── Admin translations ────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+const ADMIN_TR = {
+  da: {
+    page_title:    '3DM Projekter — Admin',
+    gate_heading:  '3DM Projekter — Admin',
+    gate_sub:      'Indtast admin-adgangskoden for at administrere projekter og klientadgangskoder.',
+    pw_label:      'Adgangskode',
+    pw_placeholder:'Admin-adgangskode',
+    sign_in:       'Log ind',
+    sign_out:      'Log ud',
+    upload_title:  'Upload nyt projekt',
+    proj_name_lbl: 'Projektnavn',
+    proj_name_ph:  'f.eks. Hansen Bolig',
+    client_name_lbl:'Klientnavn',
+    client_name_ph: 'f.eks. Hansen',
+    upload_btn:    'Upload & generer kode',
+    all_projects:  'Alle projekter',
+    refresh:       '↺ Opdater',
+    col_project:   'Projekt',
+    col_code:      'Klientkode',
+    col_file:      'Fil',
+    col_created:   'Oprettet',
+    view:          'Vis ↗',
+    delete:        'Slet',
+    empty_msg:     'Ingen projekter endnu. Upload en .3dm fil ovenfor for at komme i gang.',
+    delete_title:  'Slet projekt?',
+    delete_text:   'Dette vil permanent slette projektet og dets .3dm fil. Kan ikke fortrydes.',
+    cancel:        'Annuller',
+    confirm_delete:'Slet',
+    reports_close: 'Luk',
+    no_reports:    'Ingen rapporter for dette projekt endnu. 🎉',
+    reports_badge: (n) => `🚩 ${n} rapport${n !== 1 ? 'er' : ''}`,
+    no_reports_badge: '🚩 Ingen rapporter',
+  },
+  en: {
+    page_title:    '3DM Projects — Admin',
+    gate_heading:  '3DM Projects — Admin',
+    gate_sub:      'Enter the admin password to manage projects and client access codes.',
+    pw_label:      'Password',
+    pw_placeholder:'Admin password',
+    sign_in:       'Sign in',
+    sign_out:      'Sign out',
+    upload_title:  'Upload new project',
+    proj_name_lbl: 'Project name',
+    proj_name_ph:  'e.g. Hansen Residence',
+    client_name_lbl:'Client name',
+    client_name_ph: 'e.g. Hansen',
+    upload_btn:    'Upload & generate code',
+    all_projects:  'All projects',
+    refresh:       '↺ Refresh',
+    col_project:   'Project',
+    col_code:      'Client code',
+    col_file:      'File',
+    col_created:   'Created',
+    view:          'View ↗',
+    delete:        'Delete',
+    empty_msg:     'No projects yet. Upload a .3dm file above to get started.',
+    delete_title:  'Delete project?',
+    delete_text:   'This will permanently delete the project and its .3dm file. This cannot be undone.',
+    cancel:        'Cancel',
+    confirm_delete:'Delete',
+    reports_close: 'Close',
+    no_reports:    'No reports for this project yet. 🎉',
+    reports_badge: (n) => `🚩 ${n} report${n !== 1 ? 's' : ''}`,
+    no_reports_badge: '🚩 No reports',
+  }
+};
+
+let adminLang = localStorage.getItem('wsAdminLang') || 'da';
+
+function applyAdminLang(lang) {
+  adminLang = lang;
+  const tr = ADMIN_TR[lang] || ADMIN_TR.da;
+  const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+  const setQ = (sel, text) => { const el = document.querySelector(sel); if (el) el.textContent = text; };
+  const setPh = (id, text) => { const el = document.getElementById(id); if (el) el.placeholder = text; };
+
+  document.title = tr.page_title;
+  setQ('.gate-box h1', tr.gate_heading);
+  setQ('.gate-box p',  tr.gate_sub);
+  setQ('label[for="pw-input"]', tr.pw_label);
+  setPh('pw-input', tr.pw_placeholder);
+  set('pw-submit', tr.sign_in);
+  set('logout-btn', tr.sign_out);
+
+  // Upload card
+  setQ('.card-header h2', tr.upload_title);
+  setQ('label[for="project-name"]', tr.proj_name_lbl + ' *');
+  setPh('project-name', tr.proj_name_ph);
+  setQ('label[for="client-name"]', tr.client_name_lbl);
+  setPh('client-name', tr.client_name_ph);
+  set('upload-btn', tr.upload_btn);
+
+  // Delete confirm
+  setQ('.confirm-box h3', tr.delete_title);
+  set('confirm-cancel', tr.cancel);
+  set('confirm-delete', tr.confirm_delete);
+
+  // Reports modal close
+  set('rm-close', tr.reports_close);
+
+  // Lang button
+  const newLabel = lang === 'da' ? 'EN' : 'DA';
+  set('lang-btn', newLabel);
+
+  localStorage.setItem('wsAdminLang', lang);
+}
+
+function applyAdminTheme(theme) {
+  const dark = theme === 'dark';
+  document.documentElement.dataset.theme = dark ? 'dark' : '';
+  const icon  = dark ? '☀' : '🌙';
+  const title = dark ? 'Lyst tema / Light mode' : 'Mørkt tema / Dark mode';
+  const btn = document.getElementById('theme-btn');
+  if (btn) { btn.textContent = icon; btn.title = title; }
+  localStorage.setItem('wsTheme', theme);
+}
+
+document.getElementById('theme-btn').addEventListener('click', () => {
+  applyAdminTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+});
+document.getElementById('lang-btn').addEventListener('click', () => {
+  applyAdminLang(adminLang === 'da' ? 'en' : 'da');
+});
+
+// Init
+applyAdminTheme(localStorage.getItem('wsTheme') || 'light');
+applyAdminLang(localStorage.getItem('wsAdminLang') || 'da');
 </script>
 </body>
 </html>

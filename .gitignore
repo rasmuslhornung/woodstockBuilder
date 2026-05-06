@@ -1,0 +1,14 @@
+node_modules/
+
+# Server data — never commit, preserved on each machine
+server/uploads/
+server/demo.json
+server/reports.json
+
+# Logs
+*.log
+server-err.log
+server.log
+
+# Claude workspace
+.claude/

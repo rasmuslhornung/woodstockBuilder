@@ -8,14 +8,29 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
+      --bg:       #f0efee;
+      --surface:  #ffffff;
+      --surface2: #e8e7e4;
+      --border:   #d0ccc8;
+      --accent:   #4c70a6;
+      --brand:    #f6c643;
+      --text:     #1e1b18;
+      --muted:    #7e7363;
+    }
+    html[data-theme="dark"] {
       --bg:       #0d0f14;
       --surface:  #161820;
       --surface2: #1e2029;
       --border:   #2a2d3a;
-      --accent:   #4f9eff;
+      --accent:   #6b95c8;
+      --brand:    #f6c643;
       --text:     #e4e4e7;
       --muted:    #71717a;
     }
+
+    /* Prevent double-tap zoom on iOS while keeping pinch-to-zoom on the canvas */
+    html, body, button, input, label, select, textarea { touch-action: manipulation; }
+    #canvas { touch-action: none; } /* OrbitControls needs full touch control here */
 
     html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; }
 
@@ -198,7 +213,7 @@
       font-size: 9px;
       font-weight: 700;
       color: #fff;
-      background: rgba(8,10,18,0.78);
+      background: rgba(8,10,18,0.82);
       padding: 2px 7px;
       border-radius: 4px;
       white-space: nowrap;
@@ -207,6 +222,20 @@
       border: 1px solid rgba(255,255,255,0.13);
       box-shadow: 0 1px 6px rgba(0,0,0,0.6);
     }
+
+    /* ── UI toggle bar (theme + language) — always visible ── */
+    #ui-toggles {
+      position: fixed; top: .6rem; right: .6rem; z-index: 999;
+      display: flex; gap: .35rem;
+    }
+    #ui-toggles.hidden { display: none; }
+    .ui-toggle-btn {
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--muted); padding: .28rem .6rem; border-radius: 5px;
+      cursor: pointer; font-size: .75rem; font-weight: 600;
+      transition: color .15s, border-color .15s;
+    }
+    .ui-toggle-btn:hover { color: var(--text); border-color: var(--accent); }
 
     /* ── Print modal ── */
     #print-modal {
@@ -259,35 +288,112 @@
     /* ── Guide modal ── */
     #guide-modal {
       position: fixed; inset: 0; z-index: 210;
-      background: rgba(0,0,0,.72); backdrop-filter: blur(6px);
-      display: none; align-items: center; justify-content: center;
+      display: none;
     }
-    #guide-modal.show { display: flex; }
+    #guide-modal.show { display: block; }
+    #guide-backdrop {
+      position: absolute; inset: 0;
+      background: rgba(8,9,14,.72); backdrop-filter: blur(5px);
+      transition: opacity .3s;
+    }
+    #guide-modal.gd-tour-mode #guide-backdrop { opacity: 0; pointer-events: none; }
+
+    /* Intro panel */
     #guide-panel {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 16px; width: 480px; max-width: calc(100vw - 2rem);
-      max-height: 88vh; display: flex; flex-direction: column; overflow: hidden;
-      box-shadow: 0 32px 80px rgba(0,0,0,.6);
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      background: var(--surface); border-radius: 18px;
+      width: min(440px, calc(100vw - 1.5rem));
+      overflow: hidden;
+      box-shadow: 0 28px 80px rgba(0,0,0,.45);
+      transition: opacity .3s, transform .3s;
     }
-    .gd-slide { display: none; flex-direction: column; align-items: center; text-align: center; padding: 2.5rem 2rem 1.5rem; gap: 1rem; flex: 1; overflow-y: auto; }
-    .gd-slide.active { display: flex; animation: gd-in .25s ease; }
-    @keyframes gd-in { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
-    .gd-icon { font-size: 2.8rem; line-height: 1; }
-    .gd-title { font-size: 1.15rem; font-weight: 700; letter-spacing: -.02em; }
-    .gd-body { font-size: .85rem; color: var(--muted); line-height: 1.65; white-space: pre-line; max-width: 360px; }
-    .gd-glossary { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; width: 100%; margin-top: .5rem; }
-    .gd-cat { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: .55rem .75rem; text-align: left; }
-    .gd-cat-code { font-size: .65rem; font-weight: 700; letter-spacing: .12em; color: var(--accent); text-transform: uppercase; }
-    .gd-cat-name { font-size: .82rem; color: var(--text); margin-top: .1rem; }
-    .gd-footer { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.5rem; border-top: 1px solid var(--border); flex-shrink: 0; }
-    .gd-dots { display: flex; gap: .45rem; }
-    .gd-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); transition: background .2s; }
-    .gd-dot.active { background: var(--accent); }
-    .gd-nav { display: flex; gap: .5rem; }
-    .gd-nav button { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: .45rem 1.1rem; font-size: .8rem; border-radius: 6px; cursor: pointer; }
-    .gd-nav button:hover { border-color: var(--accent); color: var(--accent); }
-    .gd-nav .gd-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-    .gd-nav .gd-primary:hover { filter: brightness(1.1); color: #fff; }
+    @media (max-width: 460px) {
+      #guide-panel { position: fixed; top: auto; left: 0; right: 0; bottom: 0;
+        transform: none; border-radius: 18px 18px 0 0; width: 100%; }
+      #guide-modal.gd-tour-mode #guide-panel { transform: translateY(100%); }
+    }
+    #guide-modal.gd-tour-mode #guide-panel { opacity: 0; pointer-events: none; transform: translate(-50%, calc(-50% + 10px)); }
+
+    /* Header */
+    #guide-header {
+      display: flex; align-items: center; gap: .65rem;
+      padding: .6rem 1rem .6rem 1.15rem;
+      border-bottom: 1px solid var(--border);
+    }
+    #guide-logo { height: 20px; width: auto; display: block; }
+    html[data-theme="dark"] #guide-logo { filter: brightness(0) invert(1); }
+    #guide-logo-text {
+      font-size: .8rem; font-weight: 900; letter-spacing: .07em; text-transform: uppercase;
+      color: var(--brand); display: none;
+    }
+    #guide-header-sub {
+      flex: 1; font-size: .68rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .09em; color: var(--muted);
+    }
+
+    /* Body */
+    #guide-intro-body {
+      padding: 1.4rem 1.5rem 1.6rem;
+      display: flex; flex-direction: column; gap: .9rem;
+    }
+    .gd-title { font-size: 1.05rem; font-weight: 800; letter-spacing: -.02em; }
+    .gd-body  { font-size: .84rem; color: var(--muted); line-height: 1.65; }
+    .gd-bullet-list {
+      display: flex; flex-direction: column; gap: .45rem;
+      padding: 0; margin: 0; list-style: none;
+    }
+    .gd-bullet-list li {
+      display: flex; align-items: flex-start; gap: .55rem;
+      font-size: .82rem; color: var(--muted); line-height: 1.5;
+    }
+    .gd-bullet-list li .gd-icon {
+      flex-shrink: 0; width: 22px; height: 22px; border-radius: 6px;
+      background: var(--surface2); display: flex; align-items: center; justify-content: center;
+      font-size: .8rem; margin-top: .04rem;
+    }
+    #gd-start-tour {
+      background: var(--brand); color: #1a1500;
+      border: none; border-radius: 9px; padding: .72rem 1.4rem;
+      font-size: .88rem; font-weight: 800; cursor: pointer;
+      width: 100%; text-align: center; transition: filter .15s;
+    }
+    #gd-start-tour:hover { filter: brightness(1.07); }
+    #gd-start-tour:disabled { opacity: .55; cursor: default; filter: none; }
+    #gd-no-demo {
+      font-size: .78rem; color: var(--muted); text-align: center;
+      display: none;
+    }
+    .gd-skip-label {
+      display: flex; align-items: center; gap: .45rem;
+      font-size: .76rem; color: var(--muted); cursor: pointer;
+    }
+    .gd-skip-label input { accent-color: var(--brand); }
+
+    /* ── Spotlight overlay ── */
+    #tour-spotlight {
+      position: fixed; z-index: 215; border-radius: 10px;
+      box-shadow: 0 0 0 9999px rgba(5,8,20,.72);
+      outline: 2.5px solid var(--brand); outline-offset: 3px;
+      pointer-events: none; display: none;
+      transition: left .35s cubic-bezier(.4,0,.2,1), top .35s cubic-bezier(.4,0,.2,1),
+                  width .35s cubic-bezier(.4,0,.2,1), height .35s cubic-bezier(.4,0,.2,1);
+    }
+    #guide-modal.gd-tour-mode #tour-spotlight { display: block; }
+    /* Tour tooltip */
+    #tour-card {
+      position: fixed; z-index: 216; background: var(--surface); border-radius: 14px;
+      padding: .9rem 1.05rem; width: 270px;
+      box-shadow: 0 10px 36px rgba(0,0,0,.22); display: none;
+      transition: left .35s cubic-bezier(.4,0,.2,1), top .35s cubic-bezier(.4,0,.2,1);
+    }
+    #guide-modal.gd-tour-mode #tour-card { display: block; }
+    .tc-step { font-size: .65rem; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: var(--brand); margin-bottom: .35rem; }
+    #tour-card h3 { font-size: .9rem; font-weight: 800; margin-bottom: .25rem; }
+    #tour-card p  { font-size: .78rem; color: var(--muted); line-height: 1.55; }
+    #tour-card-btns { display: flex; justify-content: space-between; gap: .5rem; margin-top: .75rem; }
+    #tour-card-btns button { border: none; border-radius: 7px; padding: .37rem .82rem; font-size: .77rem; font-weight: 700; cursor: pointer; }
+    .tc-back { background: var(--border); color: var(--text); }
+    .tc-next { background: var(--brand); color: #1a1500; }
 
     /* ── Find element modal ── */
     #find-modal {
@@ -582,13 +688,6 @@
     html.dev-phone .ali { min-height: 44px; padding: .45rem 1rem; }
     html.dev-phone .mod-item { min-height: 48px; }
 
-    /* Guide modal — bottom-aligned on phone */
-    html.dev-phone #guide-modal { align-items: flex-end; }
-    html.dev-phone #guide-panel {
-      width: 100%; max-width: 100%;
-      border-radius: 16px 16px 0 0;
-      padding-bottom: env(safe-area-inset-bottom, 0px);
-    }
 
     /* ── Module labels (CSS2D) ── */
     .mod-label {
@@ -639,6 +738,12 @@
   </div>
 </div>
 
+<!-- ── Always-visible theme + language toggles (hidden once topbar shows) ── -->
+<div id="ui-toggles">
+  <button class="ui-toggle-btn" id="theme-btn-overlay" title="Skift tema">🌙</button>
+  <button class="ui-toggle-btn" id="lang-btn-overlay">EN</button>
+</div>
+
 <div id="drop-overlay">Drop .3dm file here</div>
 
 <div id="loading">
@@ -659,7 +764,9 @@
   <button class="btn-ghost" id="print-manual-btn" style="display:none">⎙ Print Manual</button>
   <button class="btn-ghost" id="find-btn" style="display:none">🔍 Find</button>
   <button class="btn-ghost" id="guide-btn">? Guide</button>
-  <button class="btn-ghost" id="change-project-btn">← Change project</button>
+  <button class="btn-ghost" id="theme-btn" title="Skift tema">🌙</button>
+  <button class="btn-ghost" id="lang-btn">EN</button>
+  <button class="btn-ghost" id="change-project-btn">← Skift projekt</button>
 </div>
 
 <!-- Module legend panel -->
@@ -770,101 +877,54 @@
 
 <!-- ── Guide modal ───────────────────────────────────────────────────────────── -->
 <div id="guide-modal">
+  <div id="guide-backdrop"></div>
+
+  <!-- Intro card -->
   <div id="guide-panel">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:.75rem 1.25rem;border-bottom:1px solid var(--border);flex-shrink:0">
-      <span style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--accent)">How to build with Woodstock Robotics</span>
+    <div id="guide-header">
+      <img src="/woodstock-logo.png" id="guide-logo"
+           onerror="this.style.display='none';document.getElementById('guide-logo-text').style.display='block'">
+      <span id="guide-logo-text">WOODSTOCK</span>
+      <span id="guide-header-sub" data-i18n="guide_header">Samlings Viewer Guide</span>
       <button class="ph-close" id="gd-close">✕</button>
     </div>
 
-    <!-- Slide 1 -->
-    <div class="gd-slide active">
-      <div class="gd-icon">🏠</div>
-      <div class="gd-title">Welcome to Assembly Viewer</div>
-      <div class="gd-body">This guide walks you through how to use the app to assemble your Woodstock Robotics structure step by step.
+    <div id="guide-intro-body">
+      <div class="gd-title" data-i18n="gd_s1_title">Velkommen til Samlings Viewer</div>
+      <div class="gd-body" data-i18n="gd_intro_body">Vi indlæser et demo-projekt og viser dig de vigtigste funktioner direkte i appen — det tager under et minut.</div>
 
-Use the arrows below to continue.</div>
+      <ul class="gd-bullet-list">
+        <li><span class="gd-icon">☰</span><span>Kits-panel — isolér et modul i 3D</span></li>
+        <li><span class="gd-icon">🔍</span><span>Find Element — kameraet flyver direkte derhen</span></li>
+        <li><span class="gd-icon">📋</span><span>Monteringsguide — trin-for-trin</span></li>
+        <li><span class="gd-icon">🚩</span><span>Rapportér et problem direkte til Woodstock</span></li>
+      </ul>
+
+      <button id="gd-start-tour" data-i18n="gd_start_tour">Indlæs demo og start tur →</button>
+      <div id="gd-no-demo" data-i18n="gd_no_demo">Ingen demo-model konfigureret. Kontakt din administrator.</div>
+
+      <label class="gd-skip-label">
+        <input type="checkbox" id="gd-skip-check">
+        <span data-i18n="gd_dont_show">Vis ikke guiden automatisk ved næste opstart</span>
+      </label>
     </div>
+  </div><!-- /guide-panel -->
 
-    <!-- Slide 2 -->
-    <div class="gd-slide">
-      <div class="gd-icon">🎨</div>
-      <div class="gd-title">Modules &amp; Kits</div>
-      <div class="gd-body">Your model is divided into Modules — colour-coded groups of structural elements that belong together.
+  <!-- Spotlight ring (visible during tour) -->
+  <div id="tour-spotlight"></div>
 
-The left panel lists every module. Click a module to inspect it and see what's inside.</div>
-    </div>
-
-    <!-- Slide 3 -->
-    <div class="gd-slide">
-      <div class="gd-icon">🔨</div>
-      <div class="gd-title">Step-by-step Build Mode</div>
-      <div class="gd-body">Click a module a second time (or press "Enter Build Mode") to start the step-by-step assembly guide.
-
-Use ← Prev and Next → to walk through each element in the correct sequence. The element lights up so you can see exactly where it goes.</div>
-    </div>
-
-    <!-- Slide 4 -->
-    <div class="gd-slide">
-      <div class="gd-icon">🔍</div>
-      <div class="gd-title">Finding an Element</div>
-      <div class="gd-body">Not sure where a specific beam goes? Tap the 🔍 Find button in the top bar.
-
-Select a kit, then a category — all elements appear in a list. Click any element and the camera flies directly to it in the 3D model.</div>
-    </div>
-
-    <!-- Slide 5 – Category glossary -->
-    <div class="gd-slide">
-      <div class="gd-icon">📖</div>
-      <div class="gd-title">Element Categories</div>
-      <div class="gd-body">Each element name encodes its structural type:</div>
-      <div class="gd-glossary">
-        <div class="gd-cat"><div class="gd-cat-code">BR</div><div class="gd-cat-name">Bundrem</div></div>
-        <div class="gd-cat"><div class="gd-cat-code">TR</div><div class="gd-cat-name">Toprem</div></div>
-        <div class="gd-cat"><div class="gd-cat-code">LP</div><div class="gd-cat-name">Lodpost</div></div>
-        <div class="gd-cat"><div class="gd-cat-code">LH</div><div class="gd-cat-name">Løsholt</div></div>
-        <div class="gd-cat"><div class="gd-cat-code">OL</div><div class="gd-cat-name">Overlægger</div></div>
-        <div class="gd-cat"><div class="gd-cat-code">FS</div><div class="gd-cat-name">Forstærkning</div></div>
-        <div class="gd-cat"><div class="gd-cat-code">GU</div><div class="gd-cat-name">Gulv</div></div>
-        <div class="gd-cat"><div class="gd-cat-code">SP</div><div class="gd-cat-name">Spær</div></div>
-      </div>
-    </div>
-
-    <!-- Slide 6 -->
-    <div class="gd-slide">
-      <div class="gd-icon">🚩</div>
-      <div class="gd-title">Reporting an Issue</div>
-      <div class="gd-body">Spotted a wrong or damaged element during assembly?
-
-Press the 🚩 flag button in the assembly bar, add a short note — and optionally a photo — and your report goes straight to Woodstock Robotics. We'll get back to you quickly.</div>
-    </div>
-
-    <!-- Slide 7 -->
-    <div class="gd-slide">
-      <div class="gd-icon">✅</div>
-      <div class="gd-title">You're all set!</div>
-      <div class="gd-body">Close this guide and enter your project code to open your model.
-
-Happy building! 🪵</div>
-    </div>
-
-    <!-- Footer: progress dots + nav -->
-    <div class="gd-footer">
-      <div class="gd-dots">
-        <div class="gd-dot active"></div>
-        <div class="gd-dot"></div>
-        <div class="gd-dot"></div>
-        <div class="gd-dot"></div>
-        <div class="gd-dot"></div>
-        <div class="gd-dot"></div>
-        <div class="gd-dot"></div>
-      </div>
-      <div class="gd-nav">
-        <button id="gd-prev">← Prev</button>
-        <button id="gd-next" class="gd-primary">Next →</button>
-      </div>
+  <!-- Tour tooltip card (visible during tour) -->
+  <div id="tour-card">
+    <div class="tc-step" id="tc-step-label">Trin 1 af 4</div>
+    <h3 id="tc-title"></h3>
+    <p  id="tc-body"></p>
+    <div id="tour-card-btns">
+      <button class="tc-back" id="tc-back">← Tilbage</button>
+      <button class="tc-next" id="tc-next">Næste →</button>
     </div>
   </div>
-</div>
+
+</div><!-- /guide-modal -->
 
 <!-- ── Find element modal (bottom sheet) ─────────────────────────────────────── -->
 <div id="find-modal">
@@ -942,7 +1002,7 @@ import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer
 // ── Scene ────────────────────────────────────────────────────────────────────────
 const canvas = document.getElementById('canvas');
 const scene  = new THREE.Scene();
-scene.background = new THREE.Color(0x0d0f14);
+scene.background = new THREE.Color(0xf5f6f8);
 
 const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.001, 1e7);
 camera.position.set(10, 8, 12);
@@ -964,8 +1024,8 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 
 // Ghost materials — used to render non-active modules during assembly
-const ghostLineMat = new THREE.LineBasicMaterial({ color: 0x3d4155, transparent: true, opacity: 0.18 });
-const ghostMeshMat = new THREE.MeshStandardMaterial({ color: 0x3d4155, transparent: true, opacity: 0.12, depthWrite: false });
+const ghostLineMat = new THREE.LineBasicMaterial({ color: 0x7080a0, transparent: true, opacity: 0.30 });
+const ghostMeshMat = new THREE.MeshStandardMaterial({ color: 0x8090b0, transparent: true, opacity: 0.18, depthWrite: false });
 
 // Edge overlay material — shared, never disposed
 const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x050608, transparent: true, opacity: 0.55 });
@@ -979,7 +1039,10 @@ fill.position.set(-8, 2, -6);
 scene.add(fill);
 
 function makeGrid(s) {
-  return new THREE.GridHelper(s, Math.max(10, Math.round(s / 50)), 0x1a1c26, 0x141619);
+  const dark = document.documentElement.dataset.theme === 'dark';
+  return new THREE.GridHelper(s, Math.max(10, Math.round(s / 50)),
+    dark ? 0x1a1c26 : 0xc4c8d8,
+    dark ? 0x141619 : 0xd4d8e8);
 }
 
 const clock = new THREE.Clock();
@@ -1044,6 +1107,7 @@ const loader = new Rhino3dmLoader();
 loader.setLibraryPath('https://cdn.jsdelivr.net/npm/rhino3dm@8.4.0/');
 
 // ── State ────────────────────────────────────────────────────────────────────────
+let currentModelType = 'production'; // 'production' | 'quotation'
 let docGroup      = null;
 let docLayers     = {};
 let selectables   = [];
@@ -1065,11 +1129,13 @@ let mouseDownX = 0, mouseDownY = 0, didDrag = false;
 // ── Landing helpers ──────────────────────────────────────────────────────────────
 function hideLanding() {
   document.getElementById('landing').style.display = 'none';
+  document.getElementById('ui-toggles').classList.add('hidden');
 }
 function showLanding() {
   clearModel();
   document.getElementById('topbar').classList.remove('show');
   document.getElementById('landing').style.display = '';
+  document.getElementById('ui-toggles').classList.remove('hidden');
   clearCodeError();
   document.getElementById('code-input').value = '';
 }
@@ -1101,7 +1167,7 @@ function _applyGroup(group, displayName, clientName) {
   const loadBox = new THREE.Box3().setFromObject(group);
   group.position.sub(loadBox.getCenter(new THREE.Vector3()));
   group.updateMatrixWorld(true);
-  createModuleLabels();
+  if (currentModelType !== 'quotation') createModuleLabels();
   fitCameraToObjects(selectables);
   hideLanding();
   document.getElementById('topbar').classList.add('show');
@@ -1110,15 +1176,22 @@ function _applyGroup(group, displayName, clientName) {
   const clientSep = document.getElementById('tb-client-sep');
   clientEl.textContent    = clientName || '';
   clientSep.style.display = clientName ? '' : 'none';
-  document.getElementById('tb-count').textContent =
-    `${selectables.length} object${selectables.length !== 1 ? 's' : ''}`;
+  document.getElementById('tb-count').textContent = L('objects_count', selectables.length);
   // document.getElementById('print-manual-btn').style.display = ''; // hidden until print bugs are fixed
   document.getElementById('find-btn').style.display = '';
   hideLoading();
+  _applyModelType();
+
+  // Fire guide tour callback if one is waiting
+  if (typeof _onNextModelLoaded === 'function') {
+    const cb = _onNextModelLoaded;
+    _onNextModelLoaded = null;
+    setTimeout(cb, 600); // small delay so the scene renders first
+  }
 }
 
 function loadFile(file) {
-  showLoading(`Loading ${file.name}…`);
+  showLoading(L('loading_file', file.name));
   const url = URL.createObjectURL(file);
   loader.load(url, group => {
     URL.revokeObjectURL(url);
@@ -1134,33 +1207,35 @@ function loadFile(file) {
 
 async function loadByCode(code) {
   clearCodeError();
-  showLoading(`Looking up project…`);
+  showLoading(L('loading_lookup'));
   try {
     const infoRes = await fetch(`${API_BASE}/api/viewer/project/${encodeURIComponent(code)}`);
     if (!infoRes.ok) {
       hideLoading();
-      showCodeError('Invalid code. Please check and try again.');
+      showCodeError(L('err_invalid_code'));
       return;
     }
     const info = await infoRes.json();
-    showLoading(`Loading ${info.filename}…`);
+    showLoading(L('loading_file', info.filename));
     const fileUrl = `${API_BASE}/api/viewer/files/${encodeURIComponent(code)}/${encodeURIComponent(info.filename)}`;
     loader.load(fileUrl, group => {
-      clearModel();
+      clearModel();                                          // resets to 'production'
+      currentModelType = info.modelType || 'production';    // restore correct type after clear
       _applyGroup(group, info.projectName || info.filename, info.clientName || '');
     }, undefined, err => {
       hideLoading();
-      showCodeError('Failed to load model file.');
+      showCodeError(L('err_load_fail'));
       console.error(err);
     });
   } catch (e) {
     hideLoading();
-    showCodeError('Network error. Is the server running?');
+    showCodeError(L('err_network'));
     console.error(e);
   }
 }
 
 function clearModel() {
+  currentModelType = 'production';
   exitAssembly(false);
   deselect();
   showAllModules(false);
@@ -1182,6 +1257,19 @@ function clearModel() {
   document.getElementById('find-btn').style.display = 'none';
 }
 
+// ── Quotation mode — hide all interactive/identification UI ──────────────────────
+function _applyModelType() {
+  const isQ = currentModelType === 'quotation';
+  // Buttons hidden in quotation mode
+  document.getElementById('find-btn').style.display        = isQ ? 'none' : '';
+  document.getElementById('guide-btn').style.display       = isQ ? 'none' : '';
+  document.getElementById('kits-toggle-btn').style.display = isQ ? 'none' : '';
+  // Module panel: production shows it; quotation never shows it
+  if (isQ) document.getElementById('module-panel').classList.remove('show');
+  // Object count: hide for quotation (reveals element info)
+  document.getElementById('tb-count').style.display = isQ ? 'none' : '';
+}
+
 // ── File inputs ──────────────────────────────────────────────────────────────────
 const fi = document.getElementById('file-input');
 fi.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); e.target.value = ''; });
@@ -1189,7 +1277,7 @@ fi.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.fi
 // ── Code entry ───────────────────────────────────────────────────────────────────
 document.getElementById('code-submit').addEventListener('click', () => {
   const code = document.getElementById('code-input').value.trim().toUpperCase();
-  if (!code) { showCodeError('Please enter a project code.'); return; }
+  if (!code) { showCodeError(L('err_enter_code')); return; }
   loadByCode(code);
 });
 document.getElementById('code-input').addEventListener('keydown', e => {
@@ -1550,11 +1638,11 @@ function buildAsmList() {
   const hex = col ? '#' + col.getHexString() : 'var(--accent)';
   document.getElementById('alp-swatch').style.background = hex;
   document.getElementById('alp-title').textContent = mod;
-  document.getElementById('alp-count').textContent = `${assemblySteps.length} elements`;
+  document.getElementById('alp-count').textContent = L('elements_count', assemblySteps.length);
   const scroll = document.getElementById('alp-scroll');
   scroll.innerHTML = '';
   assemblySteps.forEach((obj, i) => {
-    const name = obj.name || obj.userData?.attributes?.name || `Element ${i + 1}`;
+    const name = obj.name || obj.userData?.attributes?.name || L('element_n', i + 1);
     const div = document.createElement('div');
     div.className = 'ali';
     div.dataset.step = i;
@@ -1599,23 +1687,23 @@ function updateAssemblyUI(step, total) {
   document.getElementById('asm-module-label').textContent    = mod;
 
   if (isOverview) {
-    document.getElementById('asm-placing').textContent       = 'Module overview';
-    document.getElementById('asm-name').textContent          = `${total} elements — press Start to begin`;
+    document.getElementById('asm-placing').textContent       = L('module_overview');
+    document.getElementById('asm-name').textContent          = L('overview_sub', total);
     document.getElementById('asm-fill').style.width          = '0%';
-    document.getElementById('asm-step-label').textContent    = 'Overview';
+    document.getElementById('asm-step-label').textContent    = L('overview');
     document.getElementById('asm-prev').disabled             = true;
     document.getElementById('asm-next').disabled             = false;
-    document.getElementById('asm-next').textContent          = (typeof IS_PHONE !== 'undefined' && IS_PHONE) ? 'Start →' : 'Start Build →';
+    document.getElementById('asm-next').textContent          = (typeof IS_PHONE !== 'undefined' && IS_PHONE) ? L('btn_start') : L('btn_start_build');
     document.getElementById('asm-next').classList.add('asm-btn--primary');
   } else {
-    document.getElementById('asm-placing').textContent       = 'Now placing';
+    document.getElementById('asm-placing').textContent       = L('now_placing');
     document.getElementById('asm-name').textContent          = name || '—';
     document.getElementById('asm-fill').style.width          = `${((step + 1) / total) * 100}%`;
-    document.getElementById('asm-step-label').textContent    = `Step ${step + 1} of ${total}`;
+    document.getElementById('asm-step-label').textContent    = L('step_of', step + 1, total);
     document.getElementById('asm-prev').disabled             = false;
     document.getElementById('asm-next').disabled             = step === total - 1;
-    document.getElementById('asm-next').textContent          = step === total - 1 ? '✓ Done' : 'Next →';
-    document.getElementById('asm-prev').textContent          = step === 0 ? ((typeof IS_PHONE !== 'undefined' && IS_PHONE) ? '← Back' : '← Overview') : '← Prev';
+    document.getElementById('asm-next').textContent          = step === total - 1 ? L('btn_done') : L('btn_next');
+    document.getElementById('asm-prev').textContent          = step === 0 ? ((typeof IS_PHONE !== 'undefined' && IS_PHONE) ? L('btn_back') : L('btn_back_overview')) : L('btn_prev');
     if (step === total - 1) {
       document.getElementById('asm-next').classList.remove('asm-btn--primary');
     } else {
@@ -1703,7 +1791,7 @@ function applyHoverExit(mod) {
   }
 }
 canvas.addEventListener('click', e => {
-  if (didDrag || assemblyModule || !selectables.length) return;
+  if (didDrag || assemblyModule || !selectables.length || currentModelType === 'quotation') return;
   const ndc = new THREE.Vector2((e.clientX / innerWidth) * 2 - 1, (e.clientY / innerHeight) * -2 + 1);
   raycaster.setFromCamera(ndc, camera);
   const hits = raycaster.intersectObjects(selectables.filter(o => o.visible), false);
@@ -1783,30 +1871,30 @@ function openModulePanel(mod) {
 
   let html = `
     <div class="ps">
-      <div class="ps-title">Module</div>
+      <div class="ps-title">${L('module_label')}</div>
       <div style="display:flex;align-items:center;gap:.7rem;padding:.55rem 0 .4rem">
         <span style="display:inline-block;width:18px;height:18px;border-radius:5px;background:${hex};flex-shrink:0"></span>
         <span style="font-size:1.3rem;font-weight:800;letter-spacing:-.01em;line-height:1">${esc(mod)}</span>
       </div>
-      ${row('Total elements', String(objs.length))}
-      ${row('Assembly steps', seqLabel)}
+      ${row(L('total_elements'), String(objs.length))}
+      ${row(L('assembly_steps'), seqLabel)}
     </div>
     <div class="ps">
-      <div class="ps-title">Categories</div>
+      <div class="ps-title">${L('categories')}</div>
       ${Object.entries(cats).sort(([a],[b]) => a.localeCompare(b))
-          .map(([cat, n]) => row(cat === '—' ? 'Uncategorised' : esc(cat), `${n}×`)).join('')}
+          .map(([cat, n]) => row(cat === '—' ? L('uncategorised') : esc(cat), `${n}×`)).join('')}
     </div>`;
 
   const footerHtml = `
     <button id="enter-build-btn" class="btn"
       style="width:100%;display:flex;align-items:center;justify-content:center;gap:.5rem">
-      ▶&ensp;Enter Build Mode
+      ${L('enter_build_mode')}
     </button>
     <div style="font-size:.66rem;color:var(--muted);text-align:center;margin-top:.45rem">
-      or click the module again
+      ${L('or_click_module')}
     </div>`;
 
-  document.querySelector('#info-panel .ph-title').textContent = 'Module Info';
+  document.querySelector('#info-panel .ph-title').textContent = L('module_info');
   document.getElementById('panel-body').innerHTML = html;
   const footer = document.getElementById('panel-footer');
   footer.innerHTML = footerHtml;
@@ -1817,7 +1905,7 @@ function openModulePanel(mod) {
 }
 
 function closeInfoPanel() {
-  document.querySelector('#info-panel .ph-title').textContent = 'Object Info';
+  document.querySelector('#info-panel .ph-title').textContent = L('object_info');
   document.getElementById('info-panel').classList.remove('open');
   const footer = document.getElementById('panel-footer');
   footer.innerHTML = '';
@@ -1899,11 +1987,11 @@ document.getElementById('pm-module-list').addEventListener('change', () => syncS
 
 document.getElementById('pm-generate').addEventListener('click', async () => {
   const selected = [...document.querySelectorAll('.pm-mod-check:checked')].map(c => c.value);
-  if (!selected.length) { setProgress('Select at least one module.'); return; }
+  if (!selected.length) { setProgress(L('select_at_least')); return; }
   const btn = document.getElementById('pm-generate');
   btn.disabled = true;
   try { await generateAssemblyPDF(selected); }
-  finally { btn.disabled = false; btn.textContent = '⎙ Generate PDF'; setProgress(''); }
+  finally { btn.disabled = false; btn.textContent = L('generate_pdf'); setProgress(''); }
 });
 
 function setProgress(msg) { document.getElementById('pm-progress').textContent = msg; }
@@ -1934,7 +2022,7 @@ function openPrintModal() {
   });
   syncSelectAll();
   setProgress('');
-  document.getElementById('pm-generate').textContent = '⎙ Generate PDF';
+  document.getElementById('pm-generate').textContent = L('generate_pdf');
   document.getElementById('print-modal').classList.add('show');
 }
 
@@ -2325,9 +2413,8 @@ async function generateAssemblyPDF(selectedMods) {
     doc.text(projectName, W - mR, H - 4, { align: 'right' });
 
     pagesDone++;
-    setProgress(`Rendering page ${pagesDone} of ${pageTotal}…`);
-    document.getElementById('pm-generate').textContent =
-      `Generating… ${Math.round((pagesDone / pageTotal) * 100)}%`;
+    setProgress(L('rendering_page', pagesDone, pageTotal));
+    document.getElementById('pm-generate').textContent = L('generating', Math.round((pagesDone / pageTotal) * 100));
   }
 
   try {
@@ -2513,39 +2600,202 @@ function updateDims(obj) {
   el.textContent = `W ${r(s.x)} × H ${r(s.y)} × L ${r(s.z)} mm`;
 }
 
-// ── Guide modal ───────────────────────────────────────────────────────────────
-const GUIDE_TOTAL = 7;
-let guideSlide = 0;
+// ── Guide modal — spotlight tour over the real loaded model ──────────────────
+//
+// Flow:
+//   1. openGuide() → show intro card
+//   2. "Start tour" → fetch /api/viewer/demo → loadByCode(demo.code)
+//   3. _onNextModelLoaded callback fires → _startTour()
+//   4. Spotlight steps highlight real UI elements (module-panel, find-btn, etc.)
+//
+const GUIDE_TOUR_STEPS = 4;
+let guideTourStep = 0;
+let guideInTour   = false;
 
-function openGuide(start = 0) {
-  guideSlide = Math.max(0, Math.min(start, GUIDE_TOTAL - 1));
-  renderGuideSlide();
+// ── One-time callback fired by _applyGroup after the next model loads ─────────
+// Used by the guide to know when the demo model is ready.
+let _onNextModelLoaded = null;
+
+// ── Tour data — targets real UI elements ──────────────────────────────────────
+const TOUR_DATA = [
+  {
+    targetId: 'module-panel',
+    tipSide:  'right',
+    titleFb:  'Moduler & Kits',
+    bodyFb:   'Her ser du alle modulerne i projektet. Tap et modul for at isolere det i 3D — de øvrige lyser svagt op.',
+    onEnter() {
+      document.getElementById('module-panel').classList.add('show');
+    },
+  },
+  {
+    targetId: 'find-btn',
+    tipSide:  'below',
+    titleFb:  '🔍 Find Element',
+    bodyFb:   'Ikke sikker på, hvor en bjælke hører hjemme? Tap Find, vælg kit og kategori — kameraet flyver direkte derhen.',
+    onEnter() {
+      document.getElementById('module-panel').classList.remove('show');
+    },
+  },
+  {
+    targetId: 'assembly-bar',
+    tipSide:  'above',
+    titleFb:  'Trin-for-trin monteringsguide',
+    bodyFb:   'Tap et modul i listen for at starte. Brug ← og → for at gå trin for trin igennem monteringen.',
+    onEnter() {
+      // Enter assembly for the first available module
+      const firstMod = Object.keys(moduleObjects)[0];
+      if (firstMod && !assemblyModule) enterAssembly(firstMod);
+    },
+  },
+  {
+    targetId: 'asm-flag-btn',
+    tipSide:  'above',
+    titleFb:  '🚩 Rapportér et problem',
+    bodyFb:   'Opdagede noget forkert? Tap 🚩, skriv en note — og evt. et foto — rapporten sendes direkte til Woodstock Robotics.',
+    onEnter() { /* assembly-bar already visible from previous step */ },
+  },
+];
+
+// ── Spotlight positioning ─────────────────────────────────────────────────────
+function _spotlightTarget(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  const PAD  = 8;
+  const sp   = document.getElementById('tour-spotlight');
+  sp.style.left   = (rect.left   - PAD) + 'px';
+  sp.style.top    = (rect.top    - PAD) + 'px';
+  sp.style.width  = (rect.width  + PAD*2) + 'px';
+  sp.style.height = (rect.height + PAD*2) + 'px';
+}
+
+function _positionTourCard(targetId, tipSide) {
+  requestAnimationFrame(() => {
+    const el   = document.getElementById(targetId);
+    const card = document.getElementById('tour-card');
+    if (!el || !card) return;
+    const rect = el.getBoundingClientRect();
+    const cW = 270, cH = card.offsetHeight || 160, GAP = 14;
+    const vpW = window.innerWidth, vpH = window.innerHeight;
+    let cx, cy;
+    if      (tipSide === 'right') { cx = rect.right + GAP;               cy = rect.top + rect.height/2 - cH/2; }
+    else if (tipSide === 'below') { cx = rect.left + rect.width/2 - cW/2; cy = rect.bottom + GAP; }
+    else /* above */              { cx = rect.left + rect.width/2 - cW/2; cy = rect.top - cH - GAP; }
+    card.style.left  = Math.max(10, Math.min(vpW - cW - 10, cx)) + 'px';
+    card.style.top   = Math.max(10, Math.min(vpH - cH - 10, cy)) + 'px';
+  });
+}
+
+function _showTourStep(step) {
+  guideTourStep = step;
+  const d = TOUR_DATA[step];
+
+  // Run onEnter hook (show/hide panels etc.)
+  d.onEnter?.();
+
+  document.getElementById('tc-step-label').textContent = `Trin ${step + 1} af ${GUIDE_TOUR_STEPS}`;
+  document.getElementById('tc-title').textContent = d.titleFb;
+  document.getElementById('tc-body').textContent  = d.bodyFb;
+  document.getElementById('tc-next').textContent  = step === GUIDE_TOUR_STEPS - 1 ? 'Luk tour ✓' : 'Næste →';
+  document.getElementById('tc-back').textContent  = '← Tilbage';
+  document.getElementById('tc-back').disabled     = step === 0;
+
+  requestAnimationFrame(() => {
+    _spotlightTarget(d.targetId);
+    _positionTourCard(d.targetId, d.tipSide);
+  });
+}
+
+function _startTour() {
+  guideInTour = true;
+  guideTourStep = 0;
+  document.getElementById('guide-modal').classList.add('gd-tour-mode');
+  _showTourStep(0);
+}
+
+function _stopTour() {
+  guideInTour = false;
+  document.getElementById('guide-modal').classList.remove('gd-tour-mode');
+  // exitAssembly restores the module panel automatically
+  if (assemblyModule) exitAssembly();
+}
+
+document.getElementById('tc-next').addEventListener('click', () => {
+  if (guideTourStep < GUIDE_TOUR_STEPS - 1) {
+    _showTourStep(guideTourStep + 1);
+  } else {
+    _stopTour();
+    closeGuide();
+  }
+});
+document.getElementById('tc-back').addEventListener('click', () => {
+  if (guideTourStep > 0) _showTourStep(guideTourStep - 1);
+});
+
+window.addEventListener('resize', () => {
+  if (guideInTour) {
+    _spotlightTarget(TOUR_DATA[guideTourStep].targetId);
+    _positionTourCard(TOUR_DATA[guideTourStep].targetId, TOUR_DATA[guideTourStep].tipSide);
+  }
+});
+
+// ── Guide open / close ────────────────────────────────────────────────────────
+function openGuide() {
+  guideInTour = false;
+  document.getElementById('guide-modal').classList.remove('gd-tour-mode');
   document.getElementById('guide-modal').classList.add('show');
+  // Reset button state
+  const btn = document.getElementById('gd-start-tour');
+  btn.disabled = false;
+  btn.textContent = L('gd_start_tour') || 'Indlæs demo og start tur →';
+  document.getElementById('gd-no-demo').style.display = 'none';
 }
 
-function renderGuideSlide() {
-  document.querySelectorAll('.gd-slide').forEach((s, i) => s.classList.toggle('active', i === guideSlide));
-  document.querySelectorAll('.gd-dot').forEach((d, i) => d.classList.toggle('active', i === guideSlide));
-  document.getElementById('gd-prev').disabled = (guideSlide === 0);
-  const isLast = guideSlide === GUIDE_TOTAL - 1;
-  const nextBtn = document.getElementById('gd-next');
-  nextBtn.textContent = isLast ? 'Done ✓' : 'Next →';
+function closeGuide() {
+  if (guideInTour) _stopTour();
+  document.getElementById('guide-modal').classList.remove('show');
+  if (document.getElementById('gd-skip-check').checked)
+    localStorage.setItem('wsDontShowGuide', '1');
 }
 
-document.getElementById('guide-btn').addEventListener('click', () => openGuide(0));
-document.getElementById('guide-btn-landing').addEventListener('click', () => openGuide(0));
-document.getElementById('gd-close').addEventListener('click', () =>
-  document.getElementById('guide-modal').classList.remove('show'));
-document.getElementById('guide-modal').addEventListener('click', e => {
-  if (e.target === document.getElementById('guide-modal'))
+// Start tour button
+document.getElementById('gd-start-tour').addEventListener('click', async () => {
+  const btn = document.getElementById('gd-start-tour');
+  btn.disabled = true;
+  btn.textContent = 'Henter demo…';
+
+  try {
+    const resp = await fetch(`${API_BASE}/api/viewer/demo`);
+    const { demo } = await resp.json();
+    if (!demo) {
+      document.getElementById('gd-no-demo').style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = L('gd_start_tour') || 'Indlæs demo og start tur →';
+      return;
+    }
+
+    // Hide guide panel while loading, then start tour after model is ready
     document.getElementById('guide-modal').classList.remove('show');
+
+    _onNextModelLoaded = () => {
+      // Model is now live in the main viewer — start the spotlight tour
+      document.getElementById('guide-modal').classList.add('show');
+      _startTour();
+    };
+
+    loadByCode(demo.code);
+  } catch {
+    btn.disabled = false;
+    btn.textContent = L('gd_start_tour') || 'Indlæs demo og start tur →';
+  }
 });
-document.getElementById('gd-prev').addEventListener('click', () => {
-  if (guideSlide > 0) { guideSlide--; renderGuideSlide(); }
-});
-document.getElementById('gd-next').addEventListener('click', () => {
-  if (guideSlide < GUIDE_TOTAL - 1) { guideSlide++; renderGuideSlide(); }
-  else document.getElementById('guide-modal').classList.remove('show');
+
+document.getElementById('guide-btn').addEventListener('click', () => openGuide());
+document.getElementById('guide-btn-landing').addEventListener('click', () => openGuide());
+document.getElementById('gd-close').addEventListener('click', closeGuide);
+document.getElementById('guide-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('guide-modal') ||
+      e.target === document.getElementById('guide-backdrop')) closeGuide();
 });
 
 // ── Find element modal ────────────────────────────────────────────────────────
@@ -2621,7 +2871,7 @@ function renderFindElements() {
     });
 
   if (!objs.length) {
-    list.innerHTML = `<div style="font-size:.78rem;color:var(--muted);padding:.5rem">No elements found.</div>`;
+    list.innerHTML = `<div style="font-size:.78rem;color:var(--muted);padding:.5rem">${L('find_none')}</div>`;
     return;
   }
 
@@ -2639,7 +2889,7 @@ function renderFindElements() {
       `<span class="fp-el-num">${String(i + 1).padStart(2, '0')}</span>` +
       `<span class="fp-el-name">${esc(name)}</span>` +
       `<span class="fp-el-step" style="font-family:'Courier New',monospace">${esc(dims)}</span>` +
-      `<span class="fp-el-go">→ Go</span>`;
+      `<span class="fp-el-go">${L('fp_go')}</span>`;
     row.addEventListener('click', () => {
       flyToElement(obj);
       document.getElementById('find-modal').classList.remove('show');
@@ -2728,12 +2978,12 @@ document.getElementById('rp-submit').addEventListener('click', async () => {
   const elemName = document.getElementById('rp-elem-name').textContent;
   const statusEl = document.getElementById('rp-status');
   if (!note) {
-    statusEl.textContent = 'Please add a note describing the issue.';
+    statusEl.textContent = L('report_need_note');
     statusEl.style.color = '#f87171';
     return;
   }
   statusEl.style.color   = 'var(--muted)';
-  statusEl.textContent   = 'Sending…';
+  statusEl.textContent   = L('report_sending');
 
   const payload = {
     element:     elemName,
@@ -2753,17 +3003,361 @@ document.getElementById('rp-submit').addEventListener('click', async () => {
     });
     if (res.ok) {
       statusEl.style.color = '#4ade80';
-      statusEl.textContent = "✓ Report sent! We’ll follow up with you shortly.";
+      statusEl.textContent = L('report_sent');
       setTimeout(() => document.getElementById('report-modal').classList.remove('show'), 2400);
     } else {
       statusEl.style.color = '#f87171';
-      statusEl.textContent = 'Server error. Please try again.';
+      statusEl.textContent = L('report_server_error');
     }
   } catch {
     statusEl.style.color = '#f87171';
-    statusEl.textContent = 'Network error. Check your connection.';
+    statusEl.textContent = L('report_network_error');
   }
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── Translations ─────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+const TRANSLATIONS = {
+  da: {
+    landing_title:    'Samlings Viewer',
+    landing_sub:      'Indtast projektkoden du har modtaget\nfor at åbne din model.',
+    code_placeholder: 'Indtast kode…',
+    open_project:     'Åbn Projekt →',
+    or:               'eller',
+    open_local:       'Åbn lokal .3dm fil',
+    how_to_build:     '? Sådan bygger du med Woodstock Robotics',
+    btn_kits:           '☰ Kits',
+    btn_print:          '⎙ Udskriv Manual',
+    btn_find:           '🔍 Find',
+    btn_guide:          '? Guide',
+    btn_change_project: '← Skift projekt',
+    drop_here:      'Slip .3dm fil her',
+    loading_init:   'Indlæser…',
+    loading_lookup: 'Søger projekt…',
+    loading_file:   n => `Indlæser ${n}…`,
+    modules_title: 'Moduler',
+    show_all:      'Vis alle',
+    object_info:     'Objekt info',
+    module_info:     'Modul info',
+    module_label:    'Modul',
+    total_elements:  'Elementer i alt',
+    assembly_steps:  'Monteringstrin',
+    categories:      'Kategorier',
+    uncategorised:   'Ukategoriseret',
+    enter_build_mode:'▶ Gå til monteringsguide',
+    or_click_module: 'eller klik på modulet igen',
+    module_overview: 'Moduloversigt',
+    overview_sub:    n => `${n} elementer — tryk Start for at begynde`,
+    now_placing:     'Monterer nu',
+    step_of:         (s,t) => `Trin ${s} af ${t}`,
+    overview:        'Oversigt',
+    btn_prev:        '← Forrige',
+    btn_next:        'Næste →',
+    btn_start:       'Start →',
+    btn_start_build: 'Start montering →',
+    btn_back:        '← Tilbage',
+    btn_back_overview: '← Oversigt',
+    btn_done:        '✓ Færdig',
+    btn_exit:        '✕ Afslut montering',
+    elements_count:  n => `${n} elementer`,
+    element_n:       n => `Element ${n}`,
+    print_title:       'Generer monteringsmanual',
+    print_sub:         'Én PDF pr. modul — oversigt + én side pr. kategori.',
+    print_modules_title: 'Moduler der inkluderes',
+    select_all:        'Vælg alle',
+    generate_pdf:      '⎙ Generer PDF',
+    print_note:        'Åbner som download · hvid baggrund · A4 liggende',
+    select_at_least:   'Vælg mindst ét modul.',
+    generating:        p => `Genererer… ${p}%`,
+    rendering_page:    (d,t) => `Gengiver side ${d} af ${t}…`,
+    tb_orbit: 'Roter', tb_pan: 'Panorér', tb_zoom: 'Zoom',
+    tb_select: 'Vælg', tb_fit: 'Tilpas', tb_clear: 'Ryd',
+    guide_header: 'Sådan bygger du med Woodstock Robotics',
+    gd_s1_title: 'Velkommen til Samlings Viewer',
+    gd_s1_body:  'Roter modellen herover med én finger — eller to fingre for at zoome. Brug pilene nedenfor for at komme videre.',
+    gd_s2_title: 'Moduler & Kits',
+    gd_s2_body:  'Tap/klik på et modul i scenen herover for at isolere det — de øvrige lyser svagt op, præcis som i den rigtige app.',
+    gd_s2_hint:  'Tap et modul for at isolere det',
+    gd_s3_title: 'Trin-for-trin monteringsguide',
+    gd_s3_body:  'Brug ← og → ovenfor for at gå trin for trin. Det aktive element lyser op, allerede placerede forbliver farvede.',
+    gd_s4_title: 'Lad os se på knapperne',
+    gd_s4_body:  'Nu viser vi dig de vigtigste knapper direkte i brugerfladen. Tryk Næste for at starte den interaktive tur.',
+    gd_s5_title: 'Elementkategorier',
+    gd_s5_body:  'Hvert elementnavn koder sin konstruktionstype:',
+    gd_s7_title: 'Du er klar!',
+    gd_s7_body:  'Luk guiden og indtast din projektkode for at åbne din model. God fornøjelse med monteringen! 🪵',
+    gd_dont_show: 'Vis ikke guiden automatisk ved næste opstart',
+    gd_t1_title: 'Kits-panelet',
+    gd_t1_body:  'Her ser du alle modulerne i dit projekt. Tap på et modul for at isolere det — de andre lyser svagt op.',
+    gd_t2_title: '🔍 Find-knappen',
+    gd_t2_body:  'Ikke sikker på, hvor en bjælke hører hjemme? Tap Find — vælg kit og kategori, klik på elementet, og kameraet flyver direkte derhen.',
+    gd_t3_title: '🚩 Rapporter et problem',
+    gd_t3_body:  'Opdagede du et forkert element? Tryk 🚩, skriv en kort note — og evt. et foto — rapporten sendes direkte til Woodstock Robotics.',
+    gd_prev:     '← Forrige',
+    gd_next_btn: 'Næste →',
+    gd_done:     'Færdig ✓',
+    guide_header: 'Samlings Viewer Guide',
+    find_title:         '🔍 Find Element',
+    find_select_kit:    'Vælg Kit',
+    find_select_cat:    'Vælg Kategori',
+    find_elements_label:'Elementer — klik for at flyve kameraet derhen',
+    find_none:          'Ingen elementer fundet.',
+    fp_go:              '→ Gå',
+    report_title:        '🚩 Rapporter et problem',
+    report_describe:     'Beskriv problemet',
+    report_placeholder:  'f.eks. Element er beskadiget / forkert størrelse / mangler fra kit…',
+    report_photo:        'Foto (valgfrit)',
+    btn_screenshot:      '📷 Skærmbillede',
+    btn_upload_photo:    '📁 Upload foto',
+    btn_send:            'Send rapport',
+    btn_cancel:          'Annuller',
+    report_need_note:    'Tilføj en beskrivelse af problemet.',
+    report_sending:      'Sender…',
+    report_sent:         '✓ Rapport sendt! Vi vender tilbage hurtigst muligt.',
+    report_server_error: 'Serverfejl. Prøv igen.',
+    report_network_error:'Netværksfejl. Tjek din forbindelse.',
+    err_invalid_code: 'Ugyldig kode. Tjek koden og prøv igen.',
+    err_load_fail:    'Modelfilen kunne ikke indlæses.',
+    err_network:      'Netværksfejl. Er serveren kørende?',
+    err_enter_code:   'Indtast venligst en projektkode.',
+    objects_count: n => `${n} objekt${n !== 1 ? 'er' : ''}`,
+  },
+  en: {
+    landing_title:    'Assembly Viewer',
+    landing_sub:      'Enter the project code you received\nto open your model.',
+    code_placeholder: 'Enter code…',
+    open_project:     'Open Project →',
+    or:               'or',
+    open_local:       'Open local .3dm file',
+    how_to_build:     '? How to build with Woodstock Robotics',
+    btn_kits:           '☰ Kits',
+    btn_print:          '⎙ Print Manual',
+    btn_find:           '🔍 Find',
+    btn_guide:          '? Guide',
+    btn_change_project: '← Change project',
+    drop_here:      'Drop .3dm file here',
+    loading_init:   'Initialising…',
+    loading_lookup: 'Looking up project…',
+    loading_file:   n => `Loading ${n}…`,
+    modules_title: 'Modules',
+    show_all:      'Show All',
+    object_info:     'Object Info',
+    module_info:     'Module Info',
+    module_label:    'Module',
+    total_elements:  'Total elements',
+    assembly_steps:  'Assembly steps',
+    categories:      'Categories',
+    uncategorised:   'Uncategorised',
+    enter_build_mode:'▶ Enter Build Mode',
+    or_click_module: 'or click the module again',
+    module_overview: 'Module overview',
+    overview_sub:    n => `${n} elements — press Start to begin`,
+    now_placing:     'Now placing',
+    step_of:         (s,t) => `Step ${s} of ${t}`,
+    overview:        'Overview',
+    btn_prev:        '← Prev',
+    btn_next:        'Next →',
+    btn_start:       'Start →',
+    btn_start_build: 'Start Build →',
+    btn_back:        '← Back',
+    btn_back_overview: '← Overview',
+    btn_done:        '✓ Done',
+    btn_exit:        '✕ Exit Build',
+    elements_count:  n => `${n} elements`,
+    element_n:       n => `Element ${n}`,
+    print_title:       'Generate Assembly Manual',
+    print_sub:         'One PDF per module — context overview + one page per category.',
+    print_modules_title: 'Modules to include',
+    select_all:        'Select All',
+    generate_pdf:      '⎙ Generate PDF',
+    print_note:        'Opens as download · white background · A4 landscape',
+    select_at_least:   'Select at least one module.',
+    generating:        p => `Generating… ${p}%`,
+    rendering_page:    (d,t) => `Rendering page ${d} of ${t}…`,
+    tb_orbit: 'Orbit', tb_pan: 'Pan', tb_zoom: 'Zoom',
+    tb_select: 'Select', tb_fit: 'Fit', tb_clear: 'Clear',
+    guide_header: 'How to build with Woodstock Robotics',
+    gd_s1_title: 'Welcome to Assembly Viewer',
+    gd_s1_body:  'Rotate the model above with one finger — or pinch to zoom. Use the arrows below to continue.',
+    gd_s2_title: 'Modules & Kits',
+    gd_s2_body:  'Tap or click a module in the scene above to isolate it — the others fade out, exactly as in the real app.',
+    gd_s2_hint:  'Tap a module to isolate it',
+    gd_s3_title: 'Step-by-step Build Mode',
+    gd_s3_body:  'Use ← and → above to walk through each step. The active element lights up; already-placed ones stay coloured.',
+    gd_s4_title: 'Let\'s look at the buttons',
+    gd_s4_body:  'We\'ll now show you the key controls directly in the interface. Press Next to start the interactive tour.',
+    gd_s5_title: 'Element Categories',
+    gd_s5_body:  'Each element name encodes its structural type:',
+    gd_s7_title: "You're all set!",
+    gd_s7_body:  'Close the guide and enter your project code to open your model. Happy building! 🪵',
+    gd_dont_show: "Don't show the guide automatically on next launch",
+    gd_t1_title: 'The Kits panel',
+    gd_t1_body:  'Here you see all the modules in your project. Tap a module to isolate it — the others fade to ghost.',
+    gd_t2_title: '🔍 Find button',
+    gd_t2_body:  "Not sure where a beam goes? Tap Find — pick a kit and category, click any element, and the camera flies straight to it.",
+    gd_t3_title: '🚩 Report an Issue',
+    gd_t3_body:  'Spotted a wrong or damaged element? Tap 🚩, add a short note and optional photo — your report goes straight to Woodstock.',
+    gd_prev:     '← Prev',
+    gd_next_btn: 'Next →',
+    gd_done:     'Done ✓',
+    guide_header: 'Assembly Viewer Guide',
+    find_title:         '🔍 Find Element',
+    find_select_kit:    'Select Kit',
+    find_select_cat:    'Select Category',
+    find_elements_label:'Elements — click to fly camera there',
+    find_none:          'No elements found.',
+    fp_go:              '→ Go',
+    report_title:        '🚩 Report an Issue',
+    report_describe:     'Describe the issue',
+    report_placeholder:  'e.g. Element is damaged / wrong size / missing from kit…',
+    report_photo:        'Photo (optional)',
+    btn_screenshot:      '📷 Screenshot',
+    btn_upload_photo:    '📁 Upload photo',
+    btn_send:            'Send Report',
+    btn_cancel:          'Cancel',
+    report_need_note:    'Please add a note describing the issue.',
+    report_sending:      'Sending…',
+    report_sent:         "✓ Report sent! We'll follow up with you shortly.",
+    report_server_error: 'Server error. Please try again.',
+    report_network_error:'Network error. Check your connection.',
+    err_invalid_code: 'Invalid code. Please check and try again.',
+    err_load_fail:    'Failed to load model file.',
+    err_network:      'Network error. Is the server running?',
+    err_enter_code:   'Please enter a project code.',
+    objects_count: n => `${n} object${n !== 1 ? 's' : ''}`,
+  }
+};
+
+// ── Translation helper ────────────────────────────────────────────────────────
+let currentLang = localStorage.getItem('wsLang') || 'da';
+function L(key, ...args) {
+  const dict = TRANSLATIONS[currentLang] || TRANSLATIONS.da;
+  const val  = dict[key] !== undefined ? dict[key] : TRANSLATIONS.da[key];
+  return typeof val === 'function' ? val(...args) : (val ?? key);
+}
+
+// ── Apply language to all static UI ──────────────────────────────────────────
+function applyLang(lang) {
+  currentLang = lang;
+  const tr = TRANSLATIONS[lang] || TRANSLATIONS.da;
+
+  const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+  const setQ = (sel, text) => { const el = document.querySelector(sel); if (el) el.textContent = text; };
+  const setPlaceholder = (id, text) => { const el = document.getElementById(id); if (el) el.placeholder = text; };
+
+  // Landing
+  setQ('.lc-heading h1', tr.landing_title);
+  const lcP = document.querySelector('.lc-heading p');
+  if (lcP) lcP.innerHTML = tr.landing_sub.replace(/\n/g, '<br>');
+  setPlaceholder('code-input', tr.code_placeholder);
+  set('code-submit', tr.open_project);
+  setQ('.lc-divider span', tr.or);
+  const fileLabel = document.querySelector('label[for="file-input"]');
+  if (fileLabel) fileLabel.textContent = tr.open_local;
+  set('guide-btn-landing', tr.how_to_build);
+
+  // Topbar
+  set('kits-toggle-btn', tr.btn_kits);
+  set('print-manual-btn', tr.btn_print);
+  set('find-btn', tr.btn_find);
+  set('guide-btn', tr.btn_guide);
+  set('change-project-btn', tr.btn_change_project);
+
+  // Drop overlay
+  set('drop-overlay', tr.drop_here);
+
+  // Module panel
+  setQ('#module-panel .ph-title', tr.modules_title);
+  set('show-all-btn', tr.show_all);
+
+  // Info panel (only if currently showing default state)
+  if (!document.getElementById('info-panel')?.classList.contains('open')) {
+    setQ('#info-panel .ph-title', tr.object_info);
+  }
+
+  // Assembly bar
+  set('asm-exit', tr.btn_exit);
+
+  // Print modal
+  setQ('#print-panel .pm-header h2', tr.print_title);
+  setQ('#print-panel .pm-header p',  tr.print_sub);
+  setQ('#print-panel .pm-section-title', tr.print_modules_title);
+  setQ('#pm-check-all + span', tr.select_all);
+  const pmGen = document.getElementById('pm-generate');
+  if (pmGen && !pmGen.disabled) pmGen.textContent = tr.generate_pdf;
+  setQ('.pm-note', tr.print_note);
+
+  // Guide modal
+  set('guide-header-sub', tr.guide_header);
+  // Update slide text via data-i18n attributes
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.dataset.i18n;
+    const val = tr[key];
+    if (val) el.textContent = typeof val === 'function' ? val() : val;
+  });
+
+  // Find modal
+  setQ('#find-panel .fp-header h2', tr.find_title);
+  const fpLabels = document.querySelectorAll('#find-panel .fp-label');
+  if (fpLabels[0]) fpLabels[0].textContent = tr.find_select_kit;
+  if (fpLabels[1]) fpLabels[1].textContent = tr.find_select_cat;
+  if (fpLabels[2]) fpLabels[2].textContent = tr.find_elements_label;
+
+  // Report modal
+  setQ('#report-panel .rp-header h2', tr.report_title);
+  const rpLabels = document.querySelectorAll('#report-panel .rp-label');
+  if (rpLabels[0]) rpLabels[0].textContent = tr.report_describe;
+  if (rpLabels[1]) rpLabels[1].textContent = tr.report_photo;
+  setPlaceholder('rp-note', tr.report_placeholder);
+  set('rp-photo-btn',  tr.btn_screenshot);
+  set('rp-upload-btn', tr.btn_upload_photo);
+  set('rp-submit', tr.btn_send);
+  set('rp-cancel', tr.btn_cancel);
+
+  // Lang button labels
+  const newLabel = lang === 'da' ? 'EN' : 'DA';
+  document.querySelectorAll('#lang-btn, #lang-btn-overlay').forEach(b => b.textContent = newLabel);
+
+  localStorage.setItem('wsLang', lang);
+}
+
+// ── Theme ─────────────────────────────────────────────────────────────────────
+function applyTheme(theme) {
+  const dark = theme === 'dark';
+  document.documentElement.dataset.theme = dark ? 'dark' : '';
+  scene.background = new THREE.Color(dark ? 0x0d0f14 : 0xf5f6f8);
+  ghostLineMat.color.set(dark ? 0x3d4155 : 0x7080a0);
+  ghostLineMat.opacity = dark ? 0.18 : 0.30;
+  ghostMeshMat.color.set(dark ? 0x3d4155 : 0x8090b0);
+  ghostMeshMat.opacity = dark ? 0.12 : 0.18;
+  ghostLineMat.needsUpdate = true;
+  ghostMeshMat.needsUpdate = true;
+  const icon  = dark ? '☀' : '🌙';
+  const title = dark ? 'Lyst tema / Light mode' : 'Mørkt tema / Dark mode';
+  document.querySelectorAll('#theme-btn, #theme-btn-overlay').forEach(b => {
+    b.textContent = icon; b.title = title;
+  });
+  localStorage.setItem('wsTheme', theme);
+}
+
+function toggleTheme() {
+  applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+}
+function toggleLang() {
+  applyLang(currentLang === 'da' ? 'en' : 'da');
+}
+
+document.getElementById('theme-btn').addEventListener('click', toggleTheme);
+document.getElementById('lang-btn').addEventListener('click', toggleLang);
+document.getElementById('theme-btn-overlay').addEventListener('click', toggleTheme);
+document.getElementById('lang-btn-overlay').addEventListener('click', toggleLang);
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+(function wsInit() {
+  applyTheme(localStorage.getItem('wsTheme') || 'light');
+  applyLang(localStorage.getItem('wsLang')   || 'da');
+})();
 </script>
 </body>
 </html>

@@ -63,7 +63,7 @@ const upload = multer({
 // POST /api/viewer/projects — upload file + create project (admin)
 app.post("/api/viewer/projects", requireAdmin, upload.single("file"), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-  const { projectName, clientName } = req.body;
+  const { projectName, clientName, modelType } = req.body;
   if (!projectName?.trim()) return res.status(400).json({ error: "projectName is required" });
 
   const code       = generateCode();
@@ -75,6 +75,7 @@ app.post("/api/viewer/projects", requireAdmin, upload.single("file"), (req, res)
     code,
     projectName: projectName.trim(),
     clientName:  (clientName || "").trim(),
+    modelType:   modelType === "quotation" ? "quotation" : "production",
     filename:    req.file.originalname,
     fileSize:    req.file.size,
     createdAt:   new Date().toISOString()
@@ -111,7 +112,26 @@ app.delete("/api/viewer/projects/:code", requireAdmin, (req, res) => {
 app.get("/api/viewer/project/:code", (req, res) => {
   const project = readProjects().find(p => p.code === req.params.code.toUpperCase());
   if (!project) return res.status(404).json({ error: "Invalid code" });
-  res.json({ projectName: project.projectName, clientName: project.clientName, filename: project.filename });
+  res.json({
+    projectName: project.projectName,
+    clientName:  project.clientName,
+    filename:    project.filename,
+    modelType:   project.modelType || "production"
+  });
+});
+
+// PATCH /api/viewer/projects/:code/type — update model type (admin)
+app.patch("/api/viewer/projects/:code/type", requireAdmin, express.json(), (req, res) => {
+  const code = req.params.code.toUpperCase();
+  const { modelType } = req.body || {};
+  if (!["production", "quotation"].includes(modelType))
+    return res.status(400).json({ error: "modelType must be 'production' or 'quotation'" });
+  const projects = readProjects();
+  const project  = projects.find(p => p.code === code);
+  if (!project) return res.status(404).json({ error: "Project not found" });
+  project.modelType = modelType;
+  writeProjects(projects);
+  res.json({ ok: true });
 });
 
 // GET /api/viewer/files/:code/:filename — stream the .3dm file
@@ -168,6 +188,32 @@ app.get("/api/viewer/reports", requireAdmin, (req, res) => {
   } catch {
     res.json([]);
   }
+});
+
+// ── Demo project ─────────────────────────────────────────────────────────────
+// Admin can mark one project as the "demo" used in the interactive guide.
+const DEMO_PATH = path.join(__dirname, "demo.json");
+if (!fs.existsSync(DEMO_PATH)) fs.writeFileSync(DEMO_PATH, "null");
+
+// GET /api/viewer/demo — public: returns demo project info (or null)
+app.get("/api/viewer/demo", (req, res) => {
+  try {
+    const code = JSON.parse(fs.readFileSync(DEMO_PATH, "utf8"));
+    if (!code) return res.json({ demo: null });
+    const project = readProjects().find(p => p.code === code);
+    if (!project) return res.json({ demo: null });
+    res.json({ demo: { code: project.code, projectName: project.projectName, filename: project.filename } });
+  } catch { res.json({ demo: null }); }
+});
+
+// POST /api/viewer/demo — admin: set or clear the demo project
+app.post("/api/viewer/demo", requireAdmin, express.json(), (req, res) => {
+  const { code } = req.body || {};
+  if (code && !readProjects().some(p => p.code === code))
+    return res.status(404).json({ error: "Project not found" });
+  fs.writeFileSync(DEMO_PATH, JSON.stringify(code || null));
+  console.log(`[demo] Demo project set to: ${code || "(none)"}`);
+  res.json({ ok: true });
 });
 
 // Convenience routes
