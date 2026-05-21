@@ -110,7 +110,7 @@
     #module-panel.show { opacity: 1; pointer-events: all; }
     #module-list { flex: 1; overflow-y: auto; }
     .mod-item { display: flex; align-items: center; gap: .55rem; padding: .5rem .9rem; cursor: pointer; border-bottom: 1px solid var(--border); transition: background .1s; user-select: none; }
-    .mod-item:hover { background: var(--surface2); }
+    .mod-item:hover { background: var(--surface2); } /* fallback — JS overrides with per-module color */
     .mod-item.active { background: rgba(79,158,255,.12); outline: 1px solid rgba(79,158,255,.3); }
     .mod-item.dimmed { opacity: .3; }
     .mod-name { font-size: .82rem; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1030,8 +1030,8 @@ const ghostMeshMat = new THREE.MeshStandardMaterial({ color: 0x8090b0, transpare
 // Edge overlay material — shared, never disposed
 const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x050608, transparent: true, opacity: 0.55 });
 
-scene.add(new THREE.AmbientLight(0xffffff, 0.55));
-const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+scene.add(new THREE.AmbientLight(0xffffff, 0.85));
+const sun = new THREE.DirectionalLight(0xffffff, 1.1);
 sun.position.set(5, 12, 8);
 scene.add(sun);
 const fill = new THREE.DirectionalLight(0x889bb8, 0.35);
@@ -1309,16 +1309,16 @@ function getSequence(name) { const p = name.split('_'); const n = parseInt(p[p.l
 // ── Module colours ────────────────────────────────────────────────────────────────
 // Warm wood/timber palette — distinct enough to tell modules apart, all earthy tones
 const WOOD_PALETTE = [
-  0xC4925A, // pine
-  0xA06840, // oak
-  0xD4B070, // birch
-  0x8B5E38, // walnut
-  0xBF7A50, // cedar
-  0xD4945C, // cherry
-  0xE0C080, // maple
-  0x785030, // dark oak
-  0xC8A868, // teak
-  0xB07848, // mahogany
+  0xDEAA72, // pine
+  0xC08050, // oak
+  0xEACC88, // birch
+  0xAA7848, // walnut
+  0xD89060, // cedar
+  0xEAAC6C, // cherry
+  0xF0D494, // maple
+  0x9A6840, // dark oak
+  0xE0BC7C, // teak
+  0xCC9058, // mahogany
 ];
 
 function applyModuleColors(objs) {
@@ -1375,6 +1375,19 @@ function buildModuleLegend() {
       <span class="swatch" style="background:#${color.getHexString()};width:11px;height:11px;"></span>
       <span class="mod-name">${esc(mod)}</span>
       <span class="mod-count">${count}</span>`;
+    const hex = '#' + color.getHexString();
+    item.addEventListener('mouseenter', () => {
+      if (item.classList.contains('active')) return;
+      item.style.background   = hex + '28';  // ~16% opacity tint of module colour
+      item.style.borderLeft   = `3px solid ${hex}`;
+      item.style.paddingLeft  = 'calc(.9rem - 3px)';
+    });
+    item.addEventListener('mouseleave', () => {
+      if (item.classList.contains('active')) return;
+      item.style.background   = '';
+      item.style.borderLeft   = '';
+      item.style.paddingLeft  = '';
+    });
     item.addEventListener('click', () => {
       if (assemblyModule === mod) exitAssembly(true);
       else enterAssembly(mod);
