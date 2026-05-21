@@ -1780,28 +1780,43 @@ function applyHoverEnter(mod) {
   if (mod === selectedModule) return;   // already highlighted by selection
   const col = moduleColorMap[mod];
   if (!col) return;
-  // When something is selected: un-dim the hovered module to its base color.
-  // When nothing is selected: brighten it slightly.
-  const target = selectedModule
-    ? col.clone()
-    : col.clone().lerp(new THREE.Color(0xffffff), 0.3);
+
+  // Dim every other module to make the hovered one pop
+  Object.keys(moduleObjects).forEach(m => {
+    if (m === mod || m === selectedModule) return;
+    (moduleObjects[m] || []).forEach(o => {
+      const mat = Array.isArray(o.material) ? o.material[0] : o.material;
+      if (mat) {
+        mat.color.copy(moduleColorMap[m]).multiplyScalar(0.35);
+        if (mat.emissive) mat.emissive.set(0);
+      }
+    });
+  });
+
+  // Brighten hovered module strongly + add emissive glow
+  const bright = col.clone().lerp(new THREE.Color(0xffffff), 0.58);
   (moduleObjects[mod] || []).forEach(o => {
     const mat = Array.isArray(o.material) ? o.material[0] : o.material;
-    if (mat) mat.color.copy(target);
+    if (mat) {
+      mat.color.copy(bright);
+      if (mat.emissive) { mat.emissive.copy(col); mat.emissive.multiplyScalar(0.28); }
+    }
   });
 }
 
 function applyHoverExit(mod) {
   if (mod === selectedModule) return;   // don't clobber selection
-  if (selectedModule) {
-    // Re-dim back to the dimmed state used by selection
-    (moduleObjects[mod] || []).forEach(o => {
+  // Restore all modules to their correct state
+  Object.keys(moduleObjects).forEach(m => {
+    if (m === selectedModule) return;
+    (moduleObjects[m] || []).forEach(o => {
       const mat = Array.isArray(o.material) ? o.material[0] : o.material;
-      if (mat) mat.color.copy(moduleColorMap[mod]).multiplyScalar(0.28);
+      if (mat) {
+        mat.color.copy(moduleColorMap[m]).multiplyScalar(selectedModule ? 0.28 : 1.0);
+        if (mat.emissive) mat.emissive.set(0);
+      }
     });
-  } else {
-    (moduleObjects[mod] || []).forEach(setModuleColor);
-  }
+  });
 }
 canvas.addEventListener('click', e => {
   if (didDrag || assemblyModule || !selectables.length || currentModelType === 'quotation') return;
