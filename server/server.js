@@ -17,6 +17,44 @@ const UPLOADS_DIR   = path.join(__dirname, "uploads");
 if (!fs.existsSync(UPLOADS_DIR))   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 if (!fs.existsSync(PROJECTS_PATH)) fs.writeFileSync(PROJECTS_PATH, "[]");
 
+// ── Auto-recover on startup ───────────────────────────────────────────────────
+// If projects.json is empty but uploads exist, rebuild from disk automatically.
+// This ensures Railway redeploys never lose the project list.
+(function autoRecover() {
+  try {
+    const existing = JSON.parse(fs.readFileSync(PROJECTS_PATH, "utf8"));
+    if (existing.length > 0) return; // already populated, nothing to do
+
+    const recovered = [];
+    if (fs.existsSync(UPLOADS_DIR)) {
+      for (const entry of fs.readdirSync(UPLOADS_DIR, { withFileTypes: true })) {
+        if (!entry.isDirectory() || entry.name === "_tmp") continue;
+        const code  = entry.name.toUpperCase();
+        const dir   = path.join(UPLOADS_DIR, entry.name);
+        const files = fs.readdirSync(dir).filter(f => f.endsWith(".3dm"));
+        if (!files.length) continue;
+        const filename = files[0];
+        const stat     = fs.statSync(path.join(dir, filename));
+        recovered.push({
+          code,
+          projectName: filename.replace(/\.3dm$/i, ""),
+          clientName:  "",
+          modelType:   "production",
+          filename,
+          fileSize:    stat.size,
+          createdAt:   stat.birthtime.toISOString()
+        });
+      }
+    }
+    if (recovered.length > 0) {
+      fs.writeFileSync(PROJECTS_PATH, JSON.stringify(recovered, null, 2));
+      console.log(`[startup] Auto-recovered ${recovered.length} project(s) from uploads/`);
+    }
+  } catch (err) {
+    console.error("[startup] Auto-recover failed:", err);
+  }
+})();
+
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "..", "public")));
