@@ -5,18 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>3DM Projects — Admin</title>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:       #f5f6f8;
+      --bg:       #f8f6f3;
       --surface:  #ffffff;
-      --surface2: #eef0f5;
-      --border:   #d0d5e2;
+      --surface2: #e8e7e4;
+      --border:   #d0ccc8;
       --accent:   #2563eb;
       --danger:   #dc2626;
       --success:  #16a34a;
-      --text:     #111827;
-      --muted:    #6b7280;
+      --text:     #1e1b18;
+      --muted:    #7e7363;
+
+      --r-sm: 8px;
+      --r-md: 12px;
+      --r-lg: 16px;
     }
     html[data-theme="dark"] {
       --bg:       #0d0f14;
@@ -34,7 +40,7 @@
       min-height: 100%;
       background: var(--bg);
       color: var(--text);
-      font-family: system-ui, -apple-system, sans-serif;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
       font-size: 14px;
     }
 
@@ -48,8 +54,8 @@
     .gate-box {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 2.5rem 2rem;
+      border-radius: var(--r-md);
+      padding: 3rem 2.5rem;
       width: 100%; max-width: 360px;
       display: flex; flex-direction: column; gap: 1rem;
     }
@@ -82,11 +88,11 @@
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 10px;
+      border-radius: var(--r-md);
       overflow: hidden;
     }
     .card-header {
-      padding: 1rem 1.5rem;
+      padding: 1.1rem 1.5rem;
       border-bottom: 1px solid var(--border);
       display: flex; align-items: center; gap: .75rem;
     }
@@ -96,7 +102,7 @@
     /* ── Upload zone ── */
     #drop-zone {
       border: 2px dashed var(--border);
-      border-radius: 8px;
+      border-radius: var(--r-sm);
       padding: 2.5rem 1.5rem;
       text-align: center;
       cursor: pointer;
@@ -124,9 +130,9 @@
     input[type=text], input[type=password] {
       background: var(--surface2);
       border: 1px solid var(--border);
-      border-radius: 6px;
+      border-radius: var(--r-sm);
       color: var(--text);
-      padding: .55rem .8rem;
+      padding: .6rem .9rem;
       font-size: .88rem;
       width: 100%;
       outline: none;
@@ -138,11 +144,11 @@
     /* ── Buttons ── */
     .btn {
       display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
-      padding: .55rem 1.25rem; border-radius: 6px; font-size: .85rem; font-weight: 600;
+      padding: .55rem 1.25rem; border-radius: 10px; font-size: .85rem; font-weight: 600;
       cursor: pointer; border: none; transition: opacity .15s, background .15s;
     }
     .btn:disabled { opacity: .35; cursor: default; }
-    .btn-primary  { background: var(--accent); color: #fff; }
+    .btn-primary  { background: var(--accent); color: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
     .btn-primary:hover:not(:disabled) { opacity: .85; }
     .btn-ghost    { background: none; border: 1px solid var(--border); color: var(--muted); }
     .btn-ghost:hover:not(:disabled)   { border-color: var(--text); color: var(--text); }
@@ -169,7 +175,7 @@
     tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
     tbody tr:last-child { border-bottom: none; }
     tbody tr:hover { background: var(--surface2); }
-    td { padding: .7rem 1rem; vertical-align: middle; }
+    td { padding: .75rem 1rem; vertical-align: middle; }
 
     .project-name { font-weight: 600; }
     .client-name  { color: var(--muted); font-size: .8rem; }
@@ -212,7 +218,7 @@
 
     /* Progress bar */
     #upload-progress-wrap {
-      height: 3px; background: var(--border); border-radius: 2px;
+      height: 4px; background: var(--border); border-radius: 2px;
       margin-top: 1rem; display: none;
     }
     #upload-progress-bar { height: 100%; background: var(--accent); border-radius: 2px; width: 0%; transition: width .2s; }
@@ -222,7 +228,7 @@
     .type-radio-label {
       display: flex; align-items: center; gap: .35rem; cursor: pointer;
       font-size: .82rem; padding: .38rem .75rem;
-      border: 1.5px solid var(--border); border-radius: 7px; user-select: none;
+      border: 1.5px solid var(--border); border-radius: var(--r-sm); user-select: none;
       transition: border-color .15s, background .15s;
     }
     .type-radio-label input { display: none; }
@@ -232,7 +238,7 @@
     }
     /* Segmented type toggle in the table */
     .type-seg {
-      display: inline-flex; border: 1px solid var(--border); border-radius: 7px;
+      display: inline-flex; border: 1px solid var(--border); border-radius: var(--r-sm);
       overflow: hidden; flex-shrink: 0;
     }
     .type-seg button {
@@ -279,22 +285,22 @@
     #reports-modal.show { display: flex; }
     #reports-panel {
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: 12px; width: 680px; max-width: 100%;
+      border-radius: var(--r-md); width: 680px; max-width: 100%;
       max-height: 85vh; display: flex; flex-direction: column;
       box-shadow: 0 24px 60px rgba(0,0,0,.5);
     }
     .rm-header {
-      padding: 1rem 1.5rem; border-bottom: 1px solid var(--border);
+      padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--border);
       display: flex; align-items: center; gap: .75rem; flex-shrink: 0;
     }
     .rm-header h2 { font-size: .95rem; font-weight: 700; flex: 1; }
     .rm-sub { font-size: .75rem; color: var(--muted); margin-top: .1rem; }
-    .rm-body { flex: 1; overflow-y: auto; padding: 1rem 1.5rem; display: flex; flex-direction: column; gap: .65rem; }
+    .rm-body { flex: 1; overflow-y: auto; padding: 1.1rem 1.5rem; display: flex; flex-direction: column; gap: .65rem; }
 
     /* Individual report card */
     .rc {
       background: var(--surface2); border: 1px solid var(--border);
-      border-radius: 8px; padding: .85rem 1rem; display: flex; flex-direction: column; gap: .5rem;
+      border-radius: var(--r-sm); padding: .85rem 1rem; display: flex; flex-direction: column; gap: .5rem;
     }
     .rc-top { display: flex; align-items: center; gap: .55rem; flex-wrap: wrap; }
     .rc-element { font-family: 'Courier New', monospace; font-size: .82rem; color: var(--accent); font-weight: 700; }
@@ -307,7 +313,7 @@
     .rc-bottom { display: flex; align-items: center; gap: .6rem; }
     .rc-photo-btn {
       font-size: .72rem; color: var(--accent); background: rgba(79,158,255,.08);
-      border: 1px solid rgba(79,158,255,.2); border-radius: 5px;
+      border: 1px solid rgba(79,158,255,.2); border-radius: var(--r-sm);
       padding: 3px 8px; cursor: pointer; transition: background .12s;
     }
     .rc-photo-btn:hover { background: rgba(79,158,255,.18); }
@@ -333,8 +339,8 @@
     .confirm-box {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 1.75rem;
+      border-radius: var(--r-md);
+      padding: 2rem;
       width: 100%; max-width: 380px;
       display: flex; flex-direction: column; gap: 1rem;
     }

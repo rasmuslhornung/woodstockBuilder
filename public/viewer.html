@@ -5,10 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>3DM Viewer</title>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:       #f0efee;
+      --bg:       #f8f6f3;
       --surface:  #ffffff;
       --surface2: #e8e7e4;
       --border:   #d0ccc8;
@@ -16,6 +18,10 @@
       --brand:    #f6c643;
       --text:     #1e1b18;
       --muted:    #7e7363;
+
+      --r-sm: 8px;
+      --r-md: 12px;
+      --r-lg: 16px;
     }
     html[data-theme="dark"] {
       --bg:       #0d0f14;
@@ -32,7 +38,7 @@
     html, body, button, input, label, select, textarea { touch-action: manipulation; }
     #canvas { touch-action: none; } /* OrbitControls needs full touch control here */
 
-    html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; }
+    html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, -apple-system, sans-serif; }
 
     #canvas { position: fixed; inset: 0; display: block; width: 100%; height: 100%; }
 
@@ -45,9 +51,9 @@
     }
     .lc {
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: 14px; padding: 2.5rem 2rem;
+      border-radius: var(--r-lg); padding: 3rem 2.5rem;
       width: 100%; max-width: 420px;
-      display: flex; flex-direction: column; align-items: center; gap: 1.5rem;
+      display: flex; flex-direction: column; align-items: center; gap: 1.75rem;
       text-align: center;
     }
     .lc-heading h1 { font-size: 1.45rem; font-weight: 700; letter-spacing: -.02em; }
@@ -55,7 +61,7 @@
     .lc-input { width: 100%; display: flex; flex-direction: column; gap: .75rem; }
     #code-input {
       width: 100%; background: var(--surface2); border: 1.5px solid var(--border);
-      border-radius: 8px; padding: .85rem 1rem;
+      border-radius: var(--r-sm); padding: 1rem 1.2rem;
       font-size: 1.6rem; font-weight: 700; font-family: 'Courier New', monospace;
       letter-spacing: .22em; text-align: center; text-transform: uppercase;
       color: var(--text); outline: none; transition: border-color .15s, box-shadow .15s;
@@ -68,9 +74,9 @@
       color: var(--muted); font-size: .75rem;
     }
     .lc-divider::before, .lc-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-    .btn { padding: 0.6rem 1.75rem; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-size: 0.9rem; font-weight: 500; cursor: pointer; transition: opacity .15s; width: 100%; }
-    .btn:hover { opacity: .8; }
-    .btn-ghost { background: none; border: 1px solid var(--border); color: var(--muted); padding: 0.3rem 0.9rem; font-size: 0.75rem; border-radius: 5px; cursor: pointer; }
+    .btn { padding: 0.6rem 1.75rem; background: var(--accent); color: #fff; border: none; border-radius: 10px; font-size: 0.9rem; font-weight: 500; cursor: pointer; transition: opacity .15s; width: 100%; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+    .btn:hover { opacity: .85; }
+    .btn-ghost { background: none; border: 1px solid var(--border); color: var(--muted); padding: 0.3rem 0.9rem; font-size: 0.75rem; border-radius: var(--r-sm); cursor: pointer; transition: color .15s, border-color .15s; }
     .btn-ghost:hover { color: var(--text); border-color: var(--accent); }
 
     /* ── Drop / Loading ── */
@@ -96,20 +102,21 @@
     .pr:last-child { border-bottom: none; }
     .pr-key { font-size: .67rem; color: var(--muted); }
     .pr-val { font-size: .84rem; color: var(--text); word-break: break-all; }
-    .swatch { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: middle; flex-shrink: 0; }
+    .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: middle; flex-shrink: 0; }
 
     /* ── Top bar ── */
-    #topbar { position: fixed; top: 0; left: 0; right: 0; height: 42px; z-index: 20; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 1rem; gap: 1rem; font-size: .78rem; color: var(--muted); opacity: 0; pointer-events: none; transition: opacity .2s; }
+    #topbar { position: fixed; top: 0; left: 0; right: 0; height: 46px; z-index: 20; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 1rem; gap: 1rem; font-size: .78rem; color: var(--muted); opacity: 0; pointer-events: none; transition: opacity .2s; }
     #topbar.show { opacity: 1; pointer-events: all; }
     #topbar .filename { color: var(--text); font-weight: 500; }
     #topbar .sep { color: var(--border); }
     #topbar .spacer { flex: 1; }
+    #topbar #theme-btn { margin-left: .35rem; padding-left: .9rem; border-left: 1px solid var(--border); }
 
     /* ── Module panel (left) ── */
-    #module-panel { position: fixed; top: 42px; left: 0; bottom: 0; width: 210px; z-index: 15; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; opacity: 0; pointer-events: none; transition: opacity .2s; }
+    #module-panel { position: fixed; top: 46px; left: 0; bottom: 0; width: 210px; z-index: 15; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; opacity: 0; pointer-events: none; transition: opacity .2s; }
     #module-panel.show { opacity: 1; pointer-events: all; }
     #module-list { flex: 1; overflow-y: auto; }
-    .mod-item { display: flex; align-items: center; gap: .55rem; padding: .5rem .9rem; cursor: pointer; border-bottom: 1px solid var(--border); transition: background .1s; user-select: none; }
+    .mod-item { display: flex; align-items: center; gap: .55rem; padding: .6rem .9rem; min-height: 38px; cursor: pointer; border-bottom: 1px solid var(--border); transition: background .1s; user-select: none; }
     .mod-item:hover { background: var(--surface2); } /* fallback — JS overrides with per-module color */
     .mod-item.active { background: rgba(79,158,255,.12); outline: 1px solid rgba(79,158,255,.3); }
     .mod-item.dimmed { opacity: .3; }
@@ -117,7 +124,7 @@
     .mod-count { font-size: .66rem; color: var(--muted); flex-shrink: 0; }
 
     /* ── Info panel (right) ── */
-    #info-panel { position: fixed; top: 42px; right: 0; bottom: 0; width: 290px; z-index: 20; background: var(--surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; transform: translateX(100%); transition: transform .25s cubic-bezier(.4,0,.2,1); }
+    #info-panel { position: fixed; top: 46px; right: 0; bottom: 0; width: 290px; z-index: 20; background: var(--surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; transform: translateX(100%); transition: transform .25s cubic-bezier(.4,0,.2,1); }
     #info-panel.open { transform: translateX(0); }
     #panel-body { flex: 1; overflow-y: auto; padding: .85rem 1.1rem; }
     #panel-footer { flex-shrink: 0; padding: .6rem 1.1rem; border-top: 1px solid var(--border); display: none; }
@@ -126,7 +133,7 @@
     /* ── Assembly bar ── */
     /* ── Assembly element-list panel (left sidebar during build) ── */
     #asm-list-panel {
-      position: fixed; top: 42px; left: 0; width: 240px; bottom: 76px; z-index: 25;
+      position: fixed; top: 46px; left: 0; width: 240px; bottom: 76px; z-index: 25;
       background: var(--surface); border-right: 1px solid var(--border);
       display: flex; flex-direction: column;
       transform: translateX(-100%); transition: transform .3s cubic-bezier(.4,0,.2,1);
@@ -165,7 +172,7 @@
     }
     #assembly-bar.show { transform: translateY(0); }
 
-    .asm-progress-strip { height: 3px; background: var(--border); }
+    .asm-progress-strip { height: 4px; background: var(--border); }
     .asm-progress-fill  { height: 100%; background: var(--accent); transition: width .35s ease; width: 0%; }
 
     .asm-body {
@@ -188,8 +195,8 @@
     .asm-nav { display: flex; gap: .55rem; flex-shrink: 0; }
     .asm-btn {
       background: var(--surface2); border: 1px solid var(--border);
-      color: var(--text); padding: .5rem 1.2rem; font-size: .82rem; font-weight: 600;
-      border-radius: 6px; cursor: pointer; transition: all .15s; white-space: nowrap;
+      color: var(--text); padding: .55rem 1.35rem; font-size: .82rem; font-weight: 600;
+      border-radius: var(--r-sm); cursor: pointer; transition: all .15s; white-space: nowrap;
     }
     .asm-btn:hover:not(:disabled) { background: var(--accent); color: #fff; border-color: var(--accent); }
     .asm-btn:disabled { opacity: .2; cursor: default; }
@@ -199,7 +206,7 @@
     /* Exit */
     .asm-exit {
       background: none; border: 1px solid var(--border); color: var(--muted);
-      padding: .4rem .85rem; font-size: .72rem; border-radius: 5px; cursor: pointer; white-space: nowrap;
+      padding: .4rem .85rem; font-size: .72rem; border-radius: var(--r-sm); cursor: pointer; white-space: nowrap;
     }
     .asm-exit:hover { color: var(--text); border-color: var(--text); }
 
@@ -223,6 +230,61 @@
       box-shadow: 0 1px 6px rgba(0,0,0,0.6);
     }
 
+    /* ── Measurement tool ── */
+    .measure-label {
+      display: flex; align-items: center; gap: 5px;
+      background: rgba(76,112,166,0.92); backdrop-filter: blur(4px);
+      color: #fff; padding: 4px 8px 4px 10px;
+      border-radius: 20px; font-size: .75rem; font-weight: 600;
+      white-space: nowrap; user-select: none;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    .measure-label-close {
+      background: none; border: none; color: rgba(255,255,255,0.7);
+      font-size: .9rem; line-height: 1; cursor: pointer; padding: 0 2px;
+    }
+    .measure-label-close:hover { color: #fff; }
+    .measure-point-marker {
+      width: 22px; height: 22px; border-radius: 50%;
+      background: var(--accent); color: #fff;
+      font-size: .6rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      border: 2px solid #fff;
+      box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+      pointer-events: none; user-select: none;
+    }
+    .measure-point-marker.pending { animation: mpulse 1.1s ease-in-out infinite; }
+    @keyframes mpulse {
+      0%,100% { box-shadow: 0 0 0 0 rgba(76,112,166,0.55), 0 1px 5px rgba(0,0,0,0.4); }
+      50%      { box-shadow: 0 0 0 7px rgba(76,112,166,0), 0 1px 5px rgba(0,0,0,0.4); }
+    }
+    #measure-hint {
+      position: fixed; bottom: 1.4rem; left: 50%; transform: translateX(-50%);
+      background: rgba(76,112,166,0.9); color: #fff;
+      padding: 5px 15px; border-radius: 20px;
+      font-size: .72rem; font-weight: 600;
+      pointer-events: none; opacity: 0; transition: opacity .2s;
+      z-index: 50; white-space: nowrap;
+    }
+    #measure-hint.show  { opacity: 1; }
+    #measure-hint.error { background: rgba(200,60,60,0.9); }
+    body:has(#assembly-bar.show) #measure-hint { bottom: calc(76px + 1.1rem); }
+    #measure-float {
+      position: fixed; bottom: 1rem; right: 1rem; z-index: 40;
+      display: flex; flex-direction: column-reverse; gap: .45rem; align-items: center;
+    }
+    body:has(#assembly-bar.show) #measure-float { bottom: calc(76px + .75rem); }
+    .measure-fab {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: var(--surface); border: 1px solid var(--border); color: var(--text);
+      font-size: 1.05rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18); transition: all .15s;
+    }
+    .measure-fab:hover  { background: var(--surface2); }
+    .measure-fab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn-ghost.active   { background: var(--accent); color: #fff; border-radius: var(--r-sm); }
+
     /* ── UI toggle bar (theme + language) — always visible ── */
     #ui-toggles {
       position: fixed; top: .6rem; right: .6rem; z-index: 999;
@@ -231,7 +293,7 @@
     #ui-toggles.hidden { display: none; }
     .ui-toggle-btn {
       background: var(--surface); border: 1px solid var(--border);
-      color: var(--muted); padding: .28rem .6rem; border-radius: 5px;
+      color: var(--muted); padding: .28rem .6rem; border-radius: var(--r-sm);
       cursor: pointer; font-size: .75rem; font-weight: 600;
       transition: color .15s, border-color .15s;
     }
@@ -246,19 +308,19 @@
     #print-modal.show { display: flex; }
     #print-panel {
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: 14px; width: 440px; max-height: 82vh;
+      border-radius: var(--r-lg); width: 440px; max-height: 82vh;
       display: flex; flex-direction: column; overflow: hidden;
       box-shadow: 0 24px 60px rgba(0,0,0,.5);
     }
     .pm-header {
-      padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+      padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--border);
       display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
     }
     .pm-header h2 { font-size: .95rem; font-weight: 700; }
     .pm-header p  { font-size: .75rem; color: var(--muted); margin-top: .15rem; }
-    .pm-hclose { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1rem; padding: .2rem .3rem; border-radius: 3px; }
+    .pm-hclose { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1rem; padding: .2rem .3rem; border-radius: var(--r-sm); }
     .pm-hclose:hover { color: var(--text); background: var(--surface2); }
-    .pm-body { flex: 1; overflow-y: auto; padding: 1rem 1.25rem; display: flex; flex-direction: column; gap: .75rem; }
+    .pm-body { flex: 1; overflow-y: auto; padding: 1.1rem 1.5rem; display: flex; flex-direction: column; gap: .75rem; }
     .pm-section-title { font-size: .63rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: .45rem; }
     .pm-all-row {
       display: flex; align-items: center; gap: .55rem;
@@ -279,7 +341,7 @@
     .pm-mod-name { flex: 1; font-family: 'Courier New', monospace; font-size: .78rem; color: var(--text); }
     .pm-mod-count { font-size: .65rem; color: var(--muted); }
     .pm-footer {
-      padding: .85rem 1.25rem; border-top: 1px solid var(--border);
+      padding: 1.1rem 1.5rem; border-top: 1px solid var(--border);
       display: flex; flex-direction: column; gap: .45rem; flex-shrink: 0;
     }
     .pm-note { font-size: .68rem; color: var(--muted); text-align: center; }
@@ -317,7 +379,7 @@
     /* Header */
     #guide-header {
       display: flex; align-items: center; gap: .65rem;
-      padding: .6rem 1rem .6rem 1.15rem;
+      padding: .8rem 1.4rem;
       border-bottom: 1px solid var(--border);
     }
     #guide-logo { height: 20px; width: auto; display: block; }
@@ -333,7 +395,7 @@
 
     /* Body */
     #guide-intro-body {
-      padding: 1.4rem 1.5rem 1.6rem;
+      padding: 1.5rem 1.75rem 1.75rem;
       display: flex; flex-direction: column; gap: .9rem;
     }
     .gd-title { font-size: 1.05rem; font-weight: 800; letter-spacing: -.02em; }
@@ -410,11 +472,11 @@
       animation: slide-up .25s cubic-bezier(.4,0,.2,1);
     }
     @keyframes slide-up { from { transform: translateY(100%); } to { transform: none; } }
-    .fp-header { padding: .9rem 1.25rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .fp-header { padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
     .fp-header h2 { font-size: .95rem; font-weight: 700; }
     .fp-close { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1rem; }
     .fp-close:hover { color: var(--text); }
-    .fp-body { flex: 1; overflow-y: auto; padding: 1rem 1.25rem; display: flex; flex-direction: column; gap: 1rem; }
+    .fp-body { flex: 1; overflow-y: auto; padding: 1.1rem 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
     .fp-label { font-size: .63rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: .35rem; }
     .fp-kit-grid { display: flex; flex-wrap: wrap; gap: .4rem; }
     .fp-kit-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: .38rem .8rem; border-radius: 6px; font-size: .78rem; font-family: 'Courier New', monospace; cursor: pointer; transition: all .15s; }
@@ -448,10 +510,10 @@
       box-shadow: 0 -12px 40px rgba(0,0,0,.5);
       animation: slide-up .25s cubic-bezier(.4,0,.2,1);
     }
-    .rp-header { padding: .9rem 1.25rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .rp-header { padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
     .rp-header h2 { font-size: .92rem; font-weight: 700; }
     .rp-elem { font-size: .72rem; color: var(--muted); font-family: 'Courier New', monospace; margin-top: .1rem; }
-    .rp-body { padding: 1rem 1.25rem; display: flex; flex-direction: column; gap: .85rem; }
+    .rp-body { padding: 1.1rem 1.5rem; display: flex; flex-direction: column; gap: .85rem; }
     .rp-label { font-size: .63rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: .3rem; }
     #rp-note { width: 100%; background: var(--surface2); border: 1.5px solid var(--border); border-radius: 8px; padding: .7rem .9rem; color: var(--text); font-size: .85rem; font-family: inherit; resize: none; outline: none; min-height: 80px; }
     #rp-note:focus { border-color: var(--accent); }
@@ -459,14 +521,14 @@
     #rp-photo-preview { width: 64px; height: 64px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border); display: none; }
     .rp-photo-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: .5rem 1rem; border-radius: 7px; font-size: .8rem; cursor: pointer; }
     .rp-photo-btn:hover { border-color: var(--accent); color: var(--accent); }
-    .rp-footer { padding: .85rem 1.25rem; border-top: 1px solid var(--border); display: flex; gap: .6rem; }
+    .rp-footer { padding: 1.1rem 1.5rem; border-top: 1px solid var(--border); display: flex; gap: .6rem; }
     #rp-status { font-size: .75rem; color: var(--muted); margin-top: .25rem; min-height: 1rem; text-align: center; }
 
     /* ── Assembly bar extras ── */
     .asm-dims { font-size: .58rem; color: var(--muted); letter-spacing: .04em; margin-top: .1rem; font-family: 'Courier New', monospace; }
     .asm-flag {
       background: none; border: 1px solid var(--border); color: var(--muted);
-      padding: .4rem .7rem; font-size: .9rem; border-radius: 5px; cursor: pointer; flex-shrink: 0;
+      padding: .4rem .7rem; font-size: .9rem; border-radius: var(--r-sm); cursor: pointer; flex-shrink: 0;
     }
     .asm-flag:hover { color: #f87171; border-color: #f87171; }
 
@@ -711,6 +773,30 @@
       padding: 2px 7px;
     }
 
+    /* ── Plan overlay ── */
+    #plan-overlay {
+      position: fixed; top: 46px; left: 0; right: 0; bottom: 0; z-index: 19;
+      background: var(--bg); display: none; flex-direction: column;
+    }
+    #plan-overlay.show { display: flex; }
+    #plan-header {
+      height: 44px; background: var(--surface); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 1rem; gap: .75rem; flex-shrink: 0;
+    }
+    #plan-title { font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); white-space: nowrap; }
+    #plan-floor-bar { display: flex; gap: .35rem; flex: 1; }
+    .plan-floor-btn {
+      padding: .2rem .6rem; font-size: .72rem; border-radius: var(--r-sm);
+      border: 1px solid var(--border); background: none; color: var(--muted);
+      cursor: pointer; transition: background .15s, color .15s, border-color .15s;
+    }
+    .plan-floor-btn:hover,
+    .plan-floor-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    #plan-body { flex: 1; overflow: hidden; display: flex; align-items: center; justify-content: center; padding: 1.25rem; }
+    #plan-svg { width: 100%; height: 100%; max-width: 1200px; max-height: 880px; }
+    .plan-kit-group { cursor: pointer; }
+    .plan-kit-group:hover .plan-kit-rect { opacity: .75; }
+
   </style>
 </head>
 <body>
@@ -763,6 +849,9 @@
   <button class="btn-ghost" id="kits-toggle-btn" style="display:none">☰ Kits</button>
   <button class="btn-ghost" id="print-manual-btn" style="display:none">⎙ Print Manual</button>
   <button class="btn-ghost" id="find-btn" style="display:none">🔍 Find</button>
+  <button class="btn-ghost" id="plan-btn" style="display:none">⊞ Plan</button>
+  <button class="btn-ghost" id="measure-btn" style="display:none">📏 Measure</button>
+  <button class="btn-ghost" id="measure-topbar-clear-btn" style="display:none">✕ Clear</button>
   <button class="btn-ghost" id="guide-btn">? Guide</button>
   <button class="btn-ghost" id="theme-btn" title="Skift tema">🌙</button>
   <button class="btn-ghost" id="lang-btn">EN</button>
@@ -836,6 +925,13 @@
     <button class="asm-exit" id="asm-exit">✕ Exit Build</button>
   </div>
 </div>
+
+<!-- Floating measure controls -->
+<div id="measure-float">
+  <button class="measure-fab" id="measure-float-btn" title="Measure distance">📏</button>
+  <button class="measure-fab" id="measure-float-clear-btn" style="display:none" title="Clear all measurements">🗑</button>
+</div>
+<div id="measure-hint"></div>
 
 <!-- Print / PDF modal -->
 <div id="print-modal">
@@ -983,6 +1079,18 @@
   </div>
 </div>
 
+<!-- Plan overlay -->
+<div id="plan-overlay">
+  <div id="plan-header">
+    <div id="plan-title">⊞ Kit Placement Plan</div>
+    <div id="plan-floor-bar"></div>
+    <button class="ph-close" id="plan-close">✕</button>
+  </div>
+  <div id="plan-body">
+    <svg id="plan-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script type="importmap">
 {
@@ -1065,6 +1173,31 @@ function flyCamera(toPos, toTarget, duration, onComplete) {
   };
 }
 
+// ── State ────────────────────────────────────────────────────────────────────────
+let currentModelType = 'production'; // 'production' | 'quotation'
+let docGroup      = null;
+let docLayers     = {};
+let selectables   = [];
+let moduleColorMap = {};
+let moduleObjects  = {};
+let selectedModule = null;
+let hoveredModule  = null;
+let isolatedModule = null;
+let elementLabels  = [];     // per-element name labels shown during assembly overview
+
+// Assembly
+let assemblyModule = null;
+let assemblySteps  = [];   // sorted objects for current module
+let currentStep    = 0;
+
+let mouseDownX = 0, mouseDownY = 0, didDrag = false;
+
+// Measurement tool
+let measureMode  = false;
+let measurements = [];   // [{ markerA, markerB, line, labelObj }]
+let pendingPoint = null; // { position: Vector3, marker: CSS2DObject }
+let vertexCloud  = null; // THREE.Points — vertex snap targets
+
 (function loop() {
   requestAnimationFrame(loop);
   const delta = clock.getDelta();
@@ -1086,6 +1219,20 @@ function flyCamera(toPos, toTarget, duration, onComplete) {
     controls.update();
   }
 
+  // Smooth colour transitions — lerp each mesh toward its target colour
+  for (const o of selectables) {
+    const mat = Array.isArray(o.material) ? o.material[0] : o.material;
+    if (mat && o.userData._targetColor) mat.color.lerp(o.userData._targetColor, Math.min(1, delta * 12));
+  }
+  // Selected module emissive pulse — gentle breathing effect
+  if (selectedModule && moduleColorMap[selectedModule]) {
+    const pulse = Math.sin(clock.elapsedTime * 2.5) * 0.07 + 0.09;
+    for (const o of (moduleObjects[selectedModule] || [])) {
+      const mat = Array.isArray(o.material) ? o.material[0] : o.material;
+      if (mat?.emissive) mat.emissive.copy(moduleColorMap[selectedModule]).multiplyScalar(pulse);
+    }
+  }
+
   renderer.render(scene, camera);
   labelRenderer.render(scene, camera);
 })();
@@ -1105,25 +1252,6 @@ const API_BASE = location.protocol === 'file:'
 
 const loader = new Rhino3dmLoader();
 loader.setLibraryPath('https://cdn.jsdelivr.net/npm/rhino3dm@8.4.0/');
-
-// ── State ────────────────────────────────────────────────────────────────────────
-let currentModelType = 'production'; // 'production' | 'quotation'
-let docGroup      = null;
-let docLayers     = {};
-let selectables   = [];
-let moduleColorMap = {};
-let moduleObjects  = {};
-let selectedModule = null;
-let hoveredModule  = null;
-let isolatedModule = null;
-let elementLabels  = [];     // per-element name labels shown during assembly overview
-
-// Assembly
-let assemblyModule = null;
-let assemblySteps  = [];   // sorted objects for current module
-let currentStep    = 0;
-
-let mouseDownX = 0, mouseDownY = 0, didDrag = false;
 
 // ── Load file ────────────────────────────────────────────────────────────────────
 // ── Landing helpers ──────────────────────────────────────────────────────────────
@@ -1169,6 +1297,8 @@ function _applyGroup(group, displayName, clientName) {
   group.updateMatrixWorld(true);
   if (currentModelType !== 'quotation') createModuleLabels();
   fitCameraToObjects(selectables);
+  document.getElementById('measure-btn').style.display = '';
+  if (measureMode) buildVertexCloud();
   hideLanding();
   document.getElementById('topbar').classList.add('show');
   document.getElementById('tb-filename').textContent = displayName;
@@ -1179,6 +1309,7 @@ function _applyGroup(group, displayName, clientName) {
   document.getElementById('tb-count').textContent = L('objects_count', selectables.length);
   // document.getElementById('print-manual-btn').style.display = ''; // hidden until print bugs are fixed
   document.getElementById('find-btn').style.display = '';
+  document.getElementById('plan-btn').style.display = '';
   hideLoading();
   _applyModelType();
 
@@ -1249,12 +1380,19 @@ function clearModel() {
     });
   }
   removeModuleLabels();
+  clearAllMeasurements();
+  if (measureMode) { measureMode = false; renderer.domElement.style.cursor = ''; document.getElementById('measure-btn').classList.remove('active'); document.getElementById('measure-float-btn').classList.remove('active'); _updateMeasureHint(); }
+  if (vertexCloud) { scene.remove(vertexCloud); vertexCloud.geometry.dispose(); vertexCloud.material.dispose(); vertexCloud = null; }
   selectables = []; docLayers = {}; docGroup = null;
   moduleColorMap = {}; moduleObjects = {};
   document.getElementById('module-panel').classList.remove('show');
   document.getElementById('module-list').innerHTML = '';
   document.getElementById('print-manual-btn').style.display = 'none';
   document.getElementById('find-btn').style.display = 'none';
+  document.getElementById('plan-btn').style.display = 'none';
+  document.getElementById('measure-btn').style.display = 'none';
+  document.getElementById('measure-topbar-clear-btn').style.display = 'none';
+  document.getElementById('plan-overlay')?.classList.remove('show');
 }
 
 // ── Quotation mode — hide all interactive/identification UI ──────────────────────
@@ -1262,6 +1400,7 @@ function _applyModelType() {
   const isQ = currentModelType === 'quotation';
   // Buttons hidden in quotation mode
   document.getElementById('find-btn').style.display        = isQ ? 'none' : '';
+  document.getElementById('plan-btn').style.display        = isQ ? 'none' : '';
   document.getElementById('guide-btn').style.display       = isQ ? 'none' : '';
   document.getElementById('kits-toggle-btn').style.display = isQ ? 'none' : '';
   // Module panel: production shows it; quotation never shows it
@@ -1344,6 +1483,7 @@ function applyModuleColors(objs) {
         mat.polygonOffsetUnits  = 1;
       }
       obj.material = mat;
+      obj.userData._targetColor = col.clone();
     }
     moduleObjects[mod]?.push(obj);
   });
@@ -1501,6 +1641,7 @@ function enterAssembly(mod) {
     return getSequence(na) - getSequence(nb);
   });
   assemblySteps = objs;
+  if (measureMode) buildVertexCloud();
 
   // Ghost the rest of the house — keep it visible for spatial context
   selectables.forEach(obj => {
@@ -1642,7 +1783,7 @@ function setModuleColor(obj) {
   const name = obj.name || obj.userData?.attributes?.name || '';
   const col  = moduleColorMap[getModule(name)];
   const mat  = Array.isArray(obj.material) ? obj.material[0] : obj.material;
-  if (mat && col) { mat.color.copy(col); if (mat.emissive) mat.emissive.set(0); }
+  if (mat && col) { obj.userData._targetColor = col.clone(); if (mat.emissive) mat.emissive.set(0); }
 }
 
 function buildAsmList() {
@@ -1742,6 +1883,202 @@ const raycaster = new THREE.Raycaster();
 raycaster.params.Line = { threshold: 0.4 };
 
 let isPointerDown = false;
+// ── Measurement tool ─────────────────────────────────────────────────────────────
+
+function buildVertexCloud() {
+  if (vertexCloud) { scene.remove(vertexCloud); vertexCloud.geometry.dispose(); vertexCloud.material.dispose(); vertexCloud = null; }
+  const positions = [];
+  const meshes = assemblyModule
+    ? (moduleObjects[assemblyModule] || []).filter(o => o.isMesh && o.visible)
+    : selectables.filter(o => o.isMesh && o.visible);
+  for (const obj of meshes) {
+    const pos = obj.geometry?.attributes?.position;
+    if (!pos) continue;
+    for (let i = 0; i < pos.count; i++) {
+      const v = new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(obj.matrixWorld);
+      positions.push(v.x, v.y, v.z);
+    }
+  }
+  if (!positions.length) return;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  const mat = new THREE.PointsMaterial({ color: 0x4c70a6, size: 9, sizeAttenuation: false, transparent: true, opacity: 0.65, depthTest: false });
+  vertexCloud = new THREE.Points(geo, mat);
+  vertexCloud.renderOrder = 996;
+  scene.add(vertexCloud);
+}
+
+function snapToVertex(clientX, clientY) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  const tapX = clientX - rect.left;
+  const tapY = clientY - rect.top;
+  const THRESHOLD = window.matchMedia('(pointer: coarse)').matches ? 56 : 36;
+  const ndc = new THREE.Vector2((tapX / rect.width) * 2 - 1, -(tapY / rect.height) * 2 + 1);
+  const ray = new THREE.Raycaster();
+  ray.setFromCamera(ndc, camera);
+  const visibleMeshes = assemblyModule
+    ? (moduleObjects[assemblyModule] || []).filter(o => o.isMesh && o.visible)
+    : selectables.filter(o => o.isMesh && o.visible);
+  const hits = ray.intersectObjects(visibleMeshes, false);
+  if (!hits.length) return null;
+  let bestPos = null, bestDist = Infinity;
+  const seen = new Set();
+  for (const hit of hits.slice(0, 5)) {
+    const mesh = hit.object;
+    if (seen.has(mesh) || !mesh.geometry?.attributes?.position) continue;
+    seen.add(mesh);
+    const pos = mesh.geometry.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const v = new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+      const proj = v.clone().project(camera);
+      if (proj.z > 1) continue;
+      const sx = (proj.x * 0.5 + 0.5) * rect.width;
+      const sy = (-proj.y * 0.5 + 0.5) * rect.height;
+      const d = Math.hypot(sx - tapX, sy - tapY);
+      if (d < THRESHOLD && d < bestDist) { bestDist = d; bestPos = v.clone(); }
+    }
+  }
+  return bestPos;
+}
+
+function _makePointMarker(worldPos, label, isPending) {
+  const el = document.createElement('div');
+  el.className = 'measure-point-marker' + (isPending ? ' pending' : '');
+  el.textContent = label;
+  const obj = new CSS2DObject(el);
+  obj.position.copy(worldPos);
+  scene.add(obj);
+  return obj;
+}
+
+function _removeCSS2D(obj) {
+  scene.remove(obj);
+  obj.element?.remove();
+}
+
+function removeMeasurement(m) {
+  _removeCSS2D(m.markerA);
+  _removeCSS2D(m.markerB);
+  _removeCSS2D(m.labelObj);
+  scene.remove(m.line);
+  m.line.geometry.dispose();
+  m.line.material.dispose();
+  const idx = measurements.indexOf(m);
+  if (idx !== -1) measurements.splice(idx, 1);
+  _updateMeasureClearBtns();
+}
+
+function clearAllMeasurements() {
+  if (pendingPoint) { _removeCSS2D(pendingPoint.marker); pendingPoint = null; }
+  for (const m of measurements) {
+    _removeCSS2D(m.markerA);
+    _removeCSS2D(m.markerB);
+    _removeCSS2D(m.labelObj);
+    scene.remove(m.line);
+    m.line.geometry.dispose();
+    m.line.material.dispose();
+  }
+  measurements.length = 0;
+  _updateMeasureClearBtns();
+  _updateMeasureHint();
+}
+
+function _updateMeasureClearBtns() {
+  const show = measurements.length > 0;
+  document.getElementById('measure-float-clear-btn').style.display = show ? '' : 'none';
+  document.getElementById('measure-topbar-clear-btn').style.display = show ? '' : 'none';
+}
+
+function _updateMeasureHint() {
+  const el = document.getElementById('measure-hint');
+  if (!measureMode) { el.classList.remove('show', 'error'); return; }
+  el.classList.remove('error');
+  el.textContent = pendingPoint ? 'Tap a second vertex' : 'Tap a vertex to start';
+  el.classList.add('show');
+}
+
+function handleMeasureTap(clientX, clientY) {
+  const snapped = snapToVertex(clientX, clientY);
+  if (!snapped) {
+    const el = document.getElementById('measure-hint');
+    el.textContent = 'No vertex found — tap closer to an edge or corner';
+    el.classList.add('show', 'error');
+    setTimeout(() => { el.classList.remove('error'); _updateMeasureHint(); }, 1400);
+    return;
+  }
+  if (!pendingPoint) {
+    const marker = _makePointMarker(snapped, 'A', true);
+    pendingPoint = { position: snapped, marker };
+    _updateMeasureHint();
+  } else {
+    const pA = pendingPoint.position;
+    const pB = snapped;
+    pendingPoint.marker.element.classList.remove('pending');
+    const markerA = pendingPoint.marker;
+    const markerB = _makePointMarker(pB, 'B', false);
+    const lineGeo = new THREE.BufferGeometry().setFromPoints([pA, pB]);
+    const lineMat = new THREE.LineBasicMaterial({ color: 0x4c70a6, depthTest: false });
+    const line = new THREE.Line(lineGeo, lineMat);
+    line.renderOrder = 997;
+    scene.add(line);
+    const mid = pA.clone().add(pB).multiplyScalar(0.5);
+    const dist = Math.round(pA.distanceTo(pB));
+    const labelEl = document.createElement('div');
+    labelEl.className = 'measure-label';
+    const m = { markerA, markerB, line };
+    labelEl.innerHTML = `<span>${dist} mm</span>`;
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'measure-label-close';
+    closeBtn.textContent = '×';
+    closeBtn.addEventListener('pointerdown', e => { e.stopPropagation(); removeMeasurement(m); });
+    labelEl.appendChild(closeBtn);
+    const labelObj = new CSS2DObject(labelEl);
+    labelObj.position.copy(mid);
+    scene.add(labelObj);
+    m.labelObj = labelObj;
+    measurements.push(m);
+    pendingPoint = null;
+    _updateMeasureClearBtns();
+    _updateMeasureHint();
+  }
+}
+
+function toggleMeasureMode() {
+  measureMode = !measureMode;
+  document.getElementById('measure-btn').classList.toggle('active', measureMode);
+  document.getElementById('measure-float-btn').classList.toggle('active', measureMode);
+  if (measureMode) {
+    buildVertexCloud();
+    renderer.domElement.style.cursor = 'crosshair';
+  } else {
+    if (vertexCloud) vertexCloud.visible = false;
+    renderer.domElement.style.cursor = '';
+    if (pendingPoint) { _removeCSS2D(pendingPoint.marker); pendingPoint = null; }
+  }
+  _updateMeasureHint();
+}
+
+document.getElementById('measure-btn').addEventListener('click', toggleMeasureMode);
+document.getElementById('measure-float-btn').addEventListener('click', toggleMeasureMode);
+document.getElementById('measure-topbar-clear-btn').addEventListener('click', clearAllMeasurements);
+document.getElementById('measure-float-clear-btn').addEventListener('click', clearAllMeasurements);
+
+// Capture-phase listener intercepts clicks before module-selection handler
+canvas.addEventListener('click', e => {
+  if (!measureMode) return;
+  e.stopImmediatePropagation();
+  handleMeasureTap(e.clientX, e.clientY);
+}, true);
+canvas.addEventListener('touchend', e => {
+  if (!measureMode) return;
+  e.stopImmediatePropagation();
+  e.preventDefault();
+  const t = e.changedTouches[0];
+  if (t) handleMeasureTap(t.clientX, t.clientY);
+}, { capture: true, passive: false });
+
+// ─────────────────────────────────────────────────────────────────────────────────
+
 canvas.addEventListener('mousedown', e => { mouseDownX = e.clientX; mouseDownY = e.clientY; didDrag = false; isPointerDown = true; });
 canvas.addEventListener('mouseup',   () => { isPointerDown = false; });
 
@@ -1787,7 +2124,7 @@ function applyHoverEnter(mod) {
     (moduleObjects[m] || []).forEach(o => {
       const mat = Array.isArray(o.material) ? o.material[0] : o.material;
       if (mat) {
-        mat.color.copy(moduleColorMap[m]).multiplyScalar(0.35);
+        o.userData._targetColor = moduleColorMap[m].clone().multiplyScalar(0.35);
         if (mat.emissive) mat.emissive.set(0);
       }
     });
@@ -1798,7 +2135,7 @@ function applyHoverEnter(mod) {
   (moduleObjects[mod] || []).forEach(o => {
     const mat = Array.isArray(o.material) ? o.material[0] : o.material;
     if (mat) {
-      mat.color.copy(bright);
+      o.userData._targetColor = bright.clone();
       if (mat.emissive) { mat.emissive.copy(col); mat.emissive.multiplyScalar(0.28); }
     }
   });
@@ -1812,7 +2149,7 @@ function applyHoverExit(mod) {
     (moduleObjects[m] || []).forEach(o => {
       const mat = Array.isArray(o.material) ? o.material[0] : o.material;
       if (mat) {
-        mat.color.copy(moduleColorMap[m]).multiplyScalar(selectedModule ? 0.28 : 1.0);
+        o.userData._targetColor = moduleColorMap[m].clone().multiplyScalar(selectedModule ? 0.28 : 1.0);
         if (mat.emissive) mat.emissive.set(0);
       }
     });
@@ -1850,7 +2187,7 @@ function select(obj) {
   const bright = col ? col.clone().lerp(new THREE.Color(0xffffff), 0.5) : null;
   (moduleObjects[mod] || []).forEach(o => {
     const mat = Array.isArray(o.material) ? o.material[0] : o.material;
-    if (mat && bright) { mat.color.copy(bright); if (mat.emissive) mat.emissive.set(0); }
+    if (mat && bright) { o.userData._targetColor = bright.clone(); if (mat.emissive) mat.emissive.set(0); }
   });
 
   // Dim every other module so the selection stands out
@@ -1858,7 +2195,7 @@ function select(obj) {
     if (m === mod) return;
     objs.forEach(o => {
       const mat = Array.isArray(o.material) ? o.material[0] : o.material;
-      if (mat) mat.color.copy(moduleColorMap[m]).multiplyScalar(0.28);
+      if (mat) o.userData._targetColor = moduleColorMap[m].clone().multiplyScalar(0.28);
     });
   });
 
@@ -3380,6 +3717,192 @@ document.getElementById('theme-btn').addEventListener('click', toggleTheme);
 document.getElementById('lang-btn').addEventListener('click', toggleLang);
 document.getElementById('theme-btn-overlay').addEventListener('click', toggleTheme);
 document.getElementById('lang-btn-overlay').addEventListener('click', toggleLang);
+
+// ── Plan overlay (kit placement site map) ────────────────────────────────────
+function buildPlanOverlay() {
+  if (assemblyModule) return; // don't open during assembly
+  if (!Object.keys(moduleObjects).length) return;
+
+  // Gather per-kit bounding boxes from the live scene
+  const kitData = [];
+  for (const [mod, objs] of Object.entries(moduleObjects)) {
+    if (!objs.length) continue;
+    const box = new THREE.Box3();
+    objs.forEach(o => box.expandByObject(o));
+    if (box.isEmpty()) continue;
+    const center = box.getCenter(new THREE.Vector3());
+    const size   = box.getSize(new THREE.Vector3());
+    const color  = moduleColorMap[mod];
+    if (!color) continue;
+    kitData.push({ mod, center, size, color, baseY: box.min.y });
+  }
+  if (!kitData.length) return;
+
+  // Floor detection: cluster kit Y-centers; gap > 25% of total Y range = new floor
+  const sortedY   = kitData.map(k => k.baseY).sort((a, b) => a - b);
+  const yRange    = sortedY[sortedY.length - 1] - sortedY[0];
+  const gapThresh = yRange > 0 ? yRange * 0.25 : Infinity;
+  const floorBands = [];
+  let bMin = sortedY[0], bMax = sortedY[0];
+  for (let i = 1; i < sortedY.length; i++) {
+    if (sortedY[i] - bMax > gapThresh) { floorBands.push({ min: bMin, max: bMax }); bMin = bMax = sortedY[i]; }
+    else bMax = Math.max(bMax, sortedY[i]);
+  }
+  floorBands.push({ min: bMin, max: bMax });
+  kitData.forEach(k => {
+    k.floorIdx = Math.max(0, floorBands.findIndex(b => k.baseY >= b.min - 0.01 && k.baseY <= b.max + 0.01));
+  });
+  const numFloors = floorBands.length;
+
+  // Floor filter bar
+  const bar = document.getElementById('plan-floor-bar');
+  bar.innerHTML = '';
+  const setFloor = floor => {
+    document.querySelectorAll('.plan-floor-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.floor, 10) === floor));
+    document.querySelectorAll('#plan-svg .plan-floor-group').forEach(g => {
+      g.style.display = (floor === -1 || parseInt(g.dataset.floor, 10) === floor) ? '' : 'none';
+    });
+  };
+  if (numFloors > 1) {
+    [['All floors', -1], ...floorBands.map((_, i) => [`Floor ${i + 1}`, i])].forEach(([label, floor]) => {
+      const btn = document.createElement('button');
+      btn.className = 'plan-floor-btn' + (floor === -1 ? ' active' : '');
+      btn.textContent = label; btn.dataset.floor = floor;
+      btn.addEventListener('click', () => setFloor(floor));
+      bar.appendChild(btn);
+    });
+  }
+
+  // XZ extents → SVG projection
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  kitData.forEach(k => {
+    const hw = Math.max(k.size.x, 0.1) / 2, hd = Math.max(k.size.z, 0.1) / 2;
+    minX = Math.min(minX, k.center.x - hw); maxX = Math.max(maxX, k.center.x + hw);
+    minZ = Math.min(minZ, k.center.z - hd); maxZ = Math.max(maxZ, k.center.z + hd);
+  });
+  const rangeX = maxX - minX || 1, rangeZ = maxZ - minZ || 1;
+  const VW = 1000, VH = 700, PAD = 58;
+  const scale  = Math.min((VW - 2*PAD) / rangeX, (VH - 2*PAD) / rangeZ);
+  const offX   = PAD + ((VW - 2*PAD) - rangeX * scale) / 2;
+  const offZ   = PAD + ((VH - 2*PAD) - rangeZ * scale) / 2;
+  const toSx   = wx => offX + (wx - minX) * scale;
+  const toSy   = wz => offZ + (wz - minZ) * scale;
+
+  // Resolve CSS tokens for SVG (CSS vars don't work in SVG presentation attributes)
+  const cs  = getComputedStyle(document.documentElement);
+  const borderClr  = cs.getPropertyValue('--border').trim()  || '#d0ccc8';
+  const mutedClr   = cs.getPropertyValue('--muted').trim()   || '#7e7363';
+  const surfaceClr = cs.getPropertyValue('--surface').trim() || '#ffffff';
+
+  // Build SVG
+  const svg = document.getElementById('plan-svg');
+  svg.setAttribute('viewBox', `0 0 ${VW} ${VH}`);
+  svg.innerHTML = '';
+  const ns = 'http://www.w3.org/2000/svg';
+
+  const mkEl = (tag, attrs) => {
+    const el = document.createElementNS(ns, tag);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    return el;
+  };
+
+  // Background card
+  svg.appendChild(mkEl('rect', { width: VW, height: VH, fill: surfaceClr, rx: '12' }));
+
+  // Grid lines
+  const gridG = mkEl('g', { stroke: borderClr, 'stroke-width': '0.6' });
+  for (let gx = PAD; gx <= VW - PAD + 1; gx += 80) gridG.appendChild(mkEl('line', { x1: gx, y1: PAD, x2: gx, y2: VH - PAD }));
+  for (let gy = PAD; gy <= VH - PAD + 1; gy += 80) gridG.appendChild(mkEl('line', { x1: PAD, y1: gy, x2: VW - PAD, y2: gy }));
+  svg.appendChild(gridG);
+
+  // Plan area border
+  svg.appendChild(mkEl('rect', { x: PAD, y: PAD, width: VW - 2*PAD, height: VH - 2*PAD, fill: 'none', stroke: borderClr, 'stroke-width': '1.2' }));
+
+  // Kit floor groups (sorted so larger rects render first = underneath)
+  const floorGroups = {};
+  for (let f = 0; f < numFloors; f++) {
+    const g = mkEl('g', { 'data-floor': f }); g.classList.add('plan-floor-group');
+    svg.appendChild(g); floorGroups[f] = g;
+  }
+  kitData.sort((a, b) => (b.size.x * b.size.z) - (a.size.x * a.size.z)); // larger behind smaller
+
+  kitData.forEach(k => {
+    const hex = '#' + k.color.getHexString();
+    const rw  = Math.max(k.size.x * scale, 16);
+    const rh  = Math.max(k.size.z * scale, 16);
+    const rx  = toSx(k.center.x) - rw / 2;
+    const ry  = toSy(k.center.z) - rh / 2;
+
+    const g = mkEl('g', {}); g.classList.add('plan-kit-group');
+
+    // Tooltip for hover
+    const title = document.createElementNS(ns, 'title'); title.textContent = k.mod; g.appendChild(title);
+
+    // Drop shadow
+    g.appendChild(mkEl('rect', { x: rx + 2.5, y: ry + 2.5, width: rw, height: rh, rx: '5', fill: 'rgba(0,0,0,0.10)' }));
+
+    // Kit rectangle
+    const rect = mkEl('rect', { x: rx, y: ry, width: rw, height: rh, rx: '5', fill: hex, stroke: '#fff', 'stroke-width': '1.5' });
+    rect.classList.add('plan-kit-rect');
+    g.appendChild(rect);
+
+    // Label — adapt to rect shape:
+    //   wide flat beam  → horizontal text sized by height
+    //   tall thin column → rotated -90° text sized by width
+    //   square/large    → normal label
+    const cx = rx + rw / 2, cy = ry + rh / 2;
+    const isWide = rw > rh * 2;
+    const isTall = rh > rw * 2;
+    const cross  = isWide ? rh : isTall ? rw : Math.min(rw, rh);
+    const along  = isWide ? rw : isTall ? rh : Math.max(rw, rh);
+    const fs     = Math.min(12, Math.max(7, cross * 0.55));
+    if (cross >= 12 && k.mod.length * fs * 0.62 <= along - 12) {
+      const text = mkEl('text', {
+        x: cx, y: cy,
+        'text-anchor': 'middle', 'dominant-baseline': 'middle',
+        'font-size': fs, 'font-weight': '700',
+        'font-family': 'Inter, system-ui, sans-serif',
+        fill: '#fff', 'pointer-events': 'none',
+        'paint-order': 'stroke', stroke: 'rgba(0,0,0,0.45)',
+        'stroke-width': '2', 'stroke-linejoin': 'round',
+      });
+      if (isTall) text.setAttribute('transform', `rotate(-90, ${cx}, ${cy})`);
+      text.textContent = k.mod;
+      g.appendChild(text);
+    }
+
+    // Click: close overlay and fly camera to this kit
+    g.addEventListener('click', () => {
+      hidePlanOverlay();
+      const objs = moduleObjects[k.mod] || [];
+      if (objs.length) fitCameraToObjects(objs);
+    });
+
+    floorGroups[k.floorIdx]?.appendChild(g);
+  });
+
+  // Legend row at bottom for small kits
+  let lx = PAD + 4;
+  const ly = VH - PAD + 14;
+  kitData.slice().sort((a, b) => a.mod.localeCompare(b.mod)).forEach(k => {
+    if (lx > VW - PAD - 50) return;
+    const hex = '#' + k.color.getHexString();
+    svg.appendChild(mkEl('circle', { cx: lx + 4, cy: ly + 4, r: '4', fill: hex }));
+    const lbl = mkEl('text', { x: lx + 12, y: ly + 8, 'font-size': '9', fill: mutedClr, 'font-family': 'Inter, system-ui, sans-serif' });
+    lbl.textContent = k.mod;
+    svg.appendChild(lbl);
+    lx += Math.max(52, k.mod.length * 6.5 + 18);
+  });
+
+  document.getElementById('plan-overlay').classList.add('show');
+}
+
+function hidePlanOverlay() {
+  document.getElementById('plan-overlay').classList.remove('show');
+}
+
+document.getElementById('plan-btn').addEventListener('click', buildPlanOverlay);
+document.getElementById('plan-close').addEventListener('click', hidePlanOverlay);
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 (function wsInit() {
